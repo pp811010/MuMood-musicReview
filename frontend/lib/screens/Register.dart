@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class Register extends StatefulWidget {
@@ -11,16 +10,14 @@ class Register extends StatefulWidget {
 }
 
 class _RegisterState extends State<Register> {
-  // Controller
+  // Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _bioController = TextEditingController();
 
-  // แก้เป็น List เพื่อเก็บได้หลายค่า
+  // State for Genre Selection
   final List<String> _selectedGenres = [];
-
-  // รายชื่อแนวเพลง
   final List<String> _genres = [
     'Pop',
     'Rock',
@@ -45,22 +42,29 @@ class _RegisterState extends State<Register> {
     super.dispose();
   }
 
-  // Register Function
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+
   Future<void> _register() async {
-    // Validation
+    // 1. Validation
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showMessage("Please fill all fields", isError: true);
+      _showMessage("Please fill in all fields", isError: true);
       return;
     }
 
-    // ✅ 2. เช็คว่าเลือกแนวเพลงอย่างน้อย 1 อัน
     if (_selectedGenres.isEmpty) {
       _showMessage("Please select at least one genre", isError: true);
       return;
     }
 
     if (_passwordController.text != _confirmController.text) {
-      _showMessage("Password does not match", isError: true);
+      _showMessage("Passwords do not match", isError: true);
       return;
     }
 
@@ -68,18 +72,15 @@ class _RegisterState extends State<Register> {
       _isLoading = true;
     });
 
-    // URL (Android Emulator = 10.0.2.2)
+    // 2. Prepare Data
+    // Android Emulator uses 10.0.2.2
     final url = Uri.parse('http://10.0.2.2:8000/users/register/');
 
-    // Auto Username: สร้างจาก Email (ตัด @ ออก)
     String autoUsername = _emailController.text.split('@')[0];
-
-    // If bio null fill the '-' inside
     String bioValue = _bioController.text.isEmpty ? "-" : _bioController.text;
-
-    // ✅ 3. แปลง List เป็น String (เช่น "Pop, Rock") ส่งไป Backend
     String genreString = _selectedGenres.join(', ');
 
+    // 3. API Call
     try {
       final response = await http.post(
         url,
@@ -88,37 +89,30 @@ class _RegisterState extends State<Register> {
           'email': _emailController.text,
           'password': _passwordController.text,
           'username': autoUsername,
-          'favorite_genres': genreString, // ส่งค่าที่แปลงแล้ว
+          'favorite_genres': genreString,
           'bio': bioValue,
         }),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showMessage("Success! Please Sign in", isError: false);
-        Navigator.pop(context); // Back to Login page
+        _showMessage(
+          "Registration Successful! Please Sign in.",
+          isError: false,
+        );
+        Navigator.pop(context); // Go back to Login
       } else {
         var errorData = jsonDecode(response.body);
-        // เช็คว่า error key ชื่อ detail หรือเปล่า (FastAPI default)
         String errMsg = errorData['detail'] ?? "Registration Failed";
         _showMessage("Failed: $errMsg", isError: true);
       }
     } catch (e) {
-      print(e);
-      _showMessage("Can't connect to server", isError: true);
+      print("Error: $e");
+      _showMessage("Cannot connect to server", isError: true);
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
-  }
-
-  void _showMessage(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-      ),
-    );
   }
 
   @override
@@ -131,6 +125,7 @@ class _RegisterState extends State<Register> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Back Button
               IconButton(
                 alignment: Alignment.centerLeft,
                 padding: EdgeInsets.zero,
@@ -147,22 +142,29 @@ class _RegisterState extends State<Register> {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
 
               // Email
               _buildLabel('Email'),
               _buildTextField(_emailController, 'username@mail.com', false),
 
+              const SizedBox(height: 15),
+
               // Password
               _buildLabel('Password'),
               _buildTextField(_passwordController, '********', true),
+
+              const SizedBox(height: 15),
 
               // Confirm Password
               _buildLabel('Confirm Password'),
               _buildTextField(_confirmController, '********', true),
 
-              // ✅ 4. Favorite Genre (เปลี่ยนเป็น Multi-Select Chips)
+              const SizedBox(height: 15),
+
+              // Favorite Genres
               _buildLabel('Favorite Genres (Select multiple)'),
+              const SizedBox(height: 10),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
@@ -171,8 +173,8 @@ class _RegisterState extends State<Register> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Wrap(
-                  spacing: 8.0, // ระยะห่างแนวนอน
-                  runSpacing: 4.0, // ระยะห่างแนวตั้ง
+                  spacing: 8.0,
+                  runSpacing: 4.0,
                   children: _genres.map((String genre) {
                     final isSelected = _selectedGenres.contains(genre);
                     return FilterChip(
@@ -187,7 +189,7 @@ class _RegisterState extends State<Register> {
                       checkmarkColor: Colors.black,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: Colors.transparent),
+                        side: const BorderSide(color: Colors.transparent),
                       ),
                       onSelected: (bool selected) {
                         setState(() {
@@ -203,45 +205,56 @@ class _RegisterState extends State<Register> {
                 ),
               ),
 
+              const SizedBox(height: 15),
+
               // Bio
               _buildLabel('Bio (Tell us about yourself)'),
-              TextField(
-                controller: _bioController,
-                style: const TextStyle(color: Colors.white),
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Your bio...',
-                  hintStyle: const TextStyle(color: Colors.white54),
-                  filled: true,
-                  fillColor: Colors.white10,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: TextField(
+                  controller: _bioController,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'I love listening to music...',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: Colors.white10,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
 
               const SizedBox(height: 30),
 
-              // Register Button
+              // Sign Up Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1DB954),
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.black, // Text color
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.black)
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.black,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Text(
                           'Sign Up',
                           style: TextStyle(
-                            color: Colors.black,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -256,39 +269,39 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  // Helper Widget สำหรับสร้าง Label
+  // Helper Widget: Matches Login.dart style
   Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 10),
-      child: Text(
-        text,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-      ),
+    return Text(
+      text,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
     );
   }
 
-  // Helper Widget สำหรับสร้าง TextField
+  // Helper Widget: Matches Login.dart style
   Widget _buildTextField(
     TextEditingController controller,
     String hint,
     bool isPassword,
   ) {
-    return TextField(
-      controller: controller,
-      obscureText: isPassword,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white54),
-        filled: true,
-        fillColor: Colors.white10,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 15,
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.white54),
+          filled: true,
+          fillColor: Colors.white10,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 15,
+          ),
         ),
       ),
     );
