@@ -7,8 +7,11 @@ from fastapi import Depends
 from pathlib import Path
 
 
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # 1-create Engine connect postgres database
-engine = create_async_engine("postgresql+asyncpg://postgres:pp811010_Za@localhost:5432/MuMood", echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False)
 
 SessionLocal = sessionmaker(
     bind=engine,
