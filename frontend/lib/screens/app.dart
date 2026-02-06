@@ -1,4 +1,6 @@
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/Home.dart';
 
@@ -22,7 +24,7 @@ class _PostListPageState extends State<App> {
       body: IndexedStack(index: myindex, children: widgetList),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.grey[800],
+        backgroundColor: Colors.grey[800]!.withOpacity(0.9),
         onTap: (index) {
           setState(() {
             myindex = index;
