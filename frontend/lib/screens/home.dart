@@ -27,6 +27,7 @@ class _HomeState extends State<Home> {
             _buildHeader(),
             _buildCategories(),
             _buildSectionTitle("TRENDING NOW"),
+            _buildTrendingList(),
           ],
         ),
       ),
@@ -134,7 +135,77 @@ class _HomeState extends State<Home> {
       padding: const EdgeInsets.all(20.0),
       child: Text(
         title,
-        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrendingList() {
+    final List<Map<String, String>> trendingSongs = [
+      {
+        'title': 'ดอกกระจิยวบาน',
+        'artist': 'ศิลปิน A',
+        'image': 'https://i.ytimg.com/vi/Dlz_XHeUUis/maxresdefault.jpg',
+      },
+      {
+        'title': 'THE LOSER',
+        'artist': 'URBOYTJ',
+        'image': 'https://i.scdn.co/image/ab67616d0000b2737aede4855f6d0d738012e2e5',
+      },
+      {
+        'title': 'กลัวว่าฉันจะ...',
+        'artist': 'ศิลปิน C',
+        'image': 'https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fwp-content%2Fblogs.dir%2F6%2Ffiles%2F2023%2F01%2Ffrank2.jpg?q=75&w=800&cbr=1&fit=max',
+      },
+    ];
+
+    return SizedBox(
+      height: 220,
+      
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: trendingSongs.length,
+        itemBuilder: (context, index) {
+          final song = trendingSongs[index];
+          return Container(
+            width: 150,
+            margin: const EdgeInsets.only(right: 15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: Image.network(
+                    song['image']!,
+                    height: 150,
+                    width: 150,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  song['title']!,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  song['artist']!,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

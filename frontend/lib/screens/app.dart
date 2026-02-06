@@ -29,9 +29,10 @@ class _PostListPageState extends State<App> {
           });
         },
         selectedItemColor: const Color(0xFF1DB954),
+        unselectedItemColor: Colors.grey,
         currentIndex: myindex,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home" ),
           BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: "Favorite"),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
           BottomNavigationBarItem(icon: Icon(Icons.account_circle), label: "Account")
