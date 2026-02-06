@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:frontend/screens/app.dart';
 import 'package:http/http.dart' as http;
-import 'Register.dart';
+import 'register.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -253,7 +254,7 @@ class _LoginState extends State<Login> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
+                        onPressed: _isLoading ? null : () {Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => App()), (route) => false,);},
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromRGBO(30, 223, 99, 1),
                           padding: const EdgeInsets.symmetric(vertical: 15),
