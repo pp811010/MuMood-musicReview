@@ -11,7 +11,6 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final _searchController = TextEditingController();
   String _selectedGenre = 'All';
-  
 
   final List<Music> allMusic = [
     Music(
@@ -80,13 +79,11 @@ class _HomeState extends State<Home> {
             children: [
               _buildHeader(),
               _buildCategories(),
-              if(!isSearching) ...[
+              if (!isSearching) ...[
                 _buildSectionTitle("TRENDING NOW"),
-                _buildTrendingList()
+                _buildTrendingList(),
               ],
-              if(isSearching) ...[
-                SizedBox(height: 20)
-              ],
+              if (isSearching) ...[SizedBox(height: 20)],
               _buildMusicGrid(),
             ],
           ),
@@ -126,10 +123,6 @@ class _HomeState extends State<Home> {
             child: _buildSearchBar(_searchController),
           ),
         ),
-        Padding(
-          padding: EdgeInsets.all(100),
-          child: Text("ควย", style: TextStyle(color: Colors.white)),
-        ),
       ],
     );
   }
@@ -151,14 +144,15 @@ class _HomeState extends State<Home> {
           borderSide: BorderSide.none,
         ),
         contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        suffixIcon: controller.text.isNotEmpty ? IconButton(
-            icon: const Icon(Icons.clear, color: Colors.white),
-            onPressed: () {
-              controller.clear();
-              setState(() {});
-            },
-          )
-        : null
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white),
+                onPressed: () {
+                  controller.clear();
+                  setState(() {});
+                },
+              )
+            : null,
       ),
     );
   }
