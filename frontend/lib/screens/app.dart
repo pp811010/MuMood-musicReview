@@ -30,8 +30,8 @@ class _PostListPageState extends State<App> {
             myindex = index;
           });
         },
-        selectedItemColor: const Color(0xFF1DB954),
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: const Color.fromARGB(255, 7, 224, 25),
+        unselectedItemColor: Colors.grey[200],
         currentIndex: myindex,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home" ),
