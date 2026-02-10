@@ -254,7 +254,17 @@ class _LoginState extends State<Login> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : () {Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => App()), (route) => false,);},
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => App(),
+                                  ),
+                                  (route) => false,
+                                );
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromRGBO(30, 223, 99, 1),
                           padding: const EdgeInsets.symmetric(vertical: 15),
