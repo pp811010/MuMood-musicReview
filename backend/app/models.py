@@ -24,14 +24,17 @@ class Song(Base):
     __tablename__ = "songs"
 
     id = Column(Integer, primary_key=True, index=True)
-    spotify_id = Column(String, unique=True, index=True, nullable=True) # null if admin added
+    # เก็บ ID จาก Spotify เพื่อใช้ตรวจสอบความซ้ำ
+    spotify_id = Column(String, unique=True, index=True, nullable=True) 
     song_name = Column(String, nullable=False)
-    album_name = Column(String)
-    artist_name = Column(String)
-    song_cover_url = Column(String)
-    category = Column(String)
+    album_name = Column(String, nullable=True)
+    artist_name = Column(String, nullable=True)
+    song_cover_url = Column(String, nullable=True)
+    # เพิ่มช่องเก็บลิงก์เพลงตัวอย่างสำหรับ Flutter
+    preview_url = Column(String, nullable=True) 
+    category = Column(String, nullable=True) # เช่น Mood หรือ Genre
     is_custom_added = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     reviews = relationship("Review", back_populates="song")
