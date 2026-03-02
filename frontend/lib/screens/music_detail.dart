@@ -98,7 +98,7 @@ class _MusicDetailState extends State<MusicDetail> {
         ownerId: meId,
         ownerImage:
             "https://cms.dmpcdn.com/dara/2020/12/14/e449fab0-3dc4-11eb-9b6d-3fdf37c2e48e_original.jpg",
-        ownername: "Brad Pitt",
+        ownername: "พระรามควงปืน",
         comment: _commentController.text,
       );
       setState(() {
@@ -377,7 +377,7 @@ class _MusicDetailState extends State<MusicDetail> {
               CircleAvatar(
                 radius: 19,
                 backgroundImage: NetworkImage(
-                  'https://www.billboard.com/wp-content/uploads/media/end-of-the-fucking-world-netflix-2018-billboard-1548.jpg',
+                  'https://cms.dmpcdn.com/dara/2020/12/14/e449fab0-3dc4-11eb-9b6d-3fdf37c2e48e_original.jpg',
                 ),
               ),
               SizedBox(width: 13),
