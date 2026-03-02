@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/music.dart';
+import 'package:frontend/screens/music_detail.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,16 +12,16 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final _searchController = TextEditingController();
   String _selectedGenre = 'All';
-  
 
   final List<Music> allMusic = [
-    Music(
+     Music(
       id: 1,
-      title: "Like I Want You",
-      artist: "GIVĒON",
-      genre: "Pop",
-      image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
+      title: "ew",
+      artist: "joji",
+      genre: "Indie",
+      image: "https://i.ytimg.com/vi/UGB_Bsm5Unk/maxresdefault.jpg",
     ),
+   
     Music(
       id: 2,
       title: "Got you",
@@ -37,12 +38,12 @@ class _HomeState extends State<Home> {
       image:
           "https://upload.wikimedia.org/wikipedia/en/2/2a/Giveon_-_Heartbreak_Anniversary.png",
     ),
-    Music(
+     Music(
       id: 4,
-      title: "ew",
-      artist: "joji",
-      genre: "Indie",
-      image: "https://i.ytimg.com/vi/UGB_Bsm5Unk/maxresdefault.jpg",
+      title: "Like I Want You",
+      artist: "GIVĒON",
+      genre: "Pop",
+      image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
     ),
     Music(
       id: 5,
@@ -50,7 +51,7 @@ class _HomeState extends State<Home> {
       artist: "GIVĒON",
       genre: "Pop",
       image:
-          "https://upload.wikimedia.org/wikipedia/en/2/2a/Giveon_-_Heartbreak_Anniversary.png",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRM1s5M9isHkz2p1NDD-oirB2SVBmUlfrfkAg&s",
     ),
     Music(
       id: 6,
@@ -72,7 +73,7 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     bool isSearching = _searchController.text.isNotEmpty;
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(36, 36, 35, 1),
+      backgroundColor: const Color(0xFF0e0e0e),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.only(bottom: 15),
@@ -80,13 +81,11 @@ class _HomeState extends State<Home> {
             children: [
               _buildHeader(),
               _buildCategories(),
-              if(!isSearching) ...[
+              if (!isSearching) ...[
                 _buildSectionTitle("TRENDING NOW"),
-                _buildTrendingList()
+                _buildTrendingList(),
               ],
-              if(isSearching) ...[
-                SizedBox(height: 20)
-              ],
+              if (isSearching) ...[SizedBox(height: 20)],
               _buildMusicGrid(),
             ],
           ),
@@ -126,10 +125,7 @@ class _HomeState extends State<Home> {
             child: _buildSearchBar(_searchController),
           ),
         ),
-        Padding(
-          padding: EdgeInsets.all(100),
-          child: Text("ควย", style: TextStyle(color: Colors.white)),
-        ),
+       
       ],
     );
   }
@@ -143,7 +139,7 @@ class _HomeState extends State<Home> {
       },
       decoration: InputDecoration(
         hintText: 'Search your music interested',
-        hintStyle: TextStyle(color: Colors.white30),
+        hintStyle: TextStyle(color: Colors.white54),
         filled: true,
         fillColor: Colors.white10,
         border: OutlineInputBorder(
@@ -151,14 +147,15 @@ class _HomeState extends State<Home> {
           borderSide: BorderSide.none,
         ),
         contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        suffixIcon: controller.text.isNotEmpty ? IconButton(
-            icon: const Icon(Icons.clear, color: Colors.white),
-            onPressed: () {
-              controller.clear();
-              setState(() {});
-            },
-          )
-        : null
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white),
+                onPressed: () {
+                  controller.clear();
+                  setState(() {});
+                },
+              )
+            : null,
       ),
     );
   }
@@ -211,9 +208,9 @@ class _HomeState extends State<Home> {
     TextAlign? position = TextAlign.center,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
@@ -228,7 +225,7 @@ class _HomeState extends State<Home> {
           SizedBox(width: 10),
           Icon(
             Icons.local_fire_department,
-            color: const Color.fromARGB(255, 216, 254, 4),
+            color: const Color.fromARGB(255, 30, 132, 220),
           ),
         ],
       ),
@@ -238,8 +235,8 @@ class _HomeState extends State<Home> {
   Widget _buildTrendingList() {
     final List<Map<String, String>> trendingSongs = [
       {
-        'title': 'ดอกกระจิยวบาน',
-        'artist': 'ศิลปิน A',
+        'title': 'White Ferrari',
+        'artist': 'frank ocean',
         'image': 'https://i.ytimg.com/vi/Dlz_XHeUUis/maxresdefault.jpg',
       },
       {
@@ -249,55 +246,64 @@ class _HomeState extends State<Home> {
             'https://i.scdn.co/image/ab67616d0000b2737aede4855f6d0d738012e2e5',
       },
       {
+        'title': 'SunFlowers',
+        'artist': 'Post Malon',
+        'image':
+            'https://i.scdn.co/image/ab67616d0000b273e2e352d89826aef6dbd5ff8f',
+      },
+      {
         'title': 'กลัวว่าฉันจะ...',
         'artist': 'ศิลปิน C',
         'image':
-            'https://image-cdn.hypb.st/https%3A%2F%2Fhypebeast.com%2Fwp-content%2Fblogs.dir%2F6%2Ffiles%2F2023%2F01%2Ffrank2.jpg?q=75&w=800&cbr=1&fit=max',
+            'https://i.scdn.co/image/ab67616d0000b273e2e352d89826aef6dbd5ff8f',
       },
     ];
-    return SizedBox(
-      height: 220,
+    return Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: SizedBox(
+        height: 220,
 
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: trendingSongs.length,
-        itemBuilder: (context, index) {
-          final song = trendingSongs[index];
-          return Container(
-            width: 150,
-            margin: const EdgeInsets.only(right: 15),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: Image.network(
-                    song['image']!,
-                    height: 150,
-                    width: 150,
-                    fit: BoxFit.cover,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: trendingSongs.length,
+          itemBuilder: (context, index) {
+            final song = trendingSongs[index];
+            return Container(
+              width: 150,
+              margin: const EdgeInsets.only(right: 15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Image.network(
+                      song['image']!,
+                      height: 150,
+                      width: 150,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  song['title']!,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                  const SizedBox(height: 8),
+                  Text(
+                    song['title']!,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  song['artist']!,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 5),
+                  Text(
+                    song['artist']!,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -319,16 +325,27 @@ class _HomeState extends State<Home> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 20, left: 22),
+          padding: const EdgeInsets.only(bottom: 20, left: 22, right: 22),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Text(
-              '$_selectedGenre | ${filteredMusic.length} TRACKS',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-                color: Colors.white,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$_selectedGenre | ${filteredMusic.length} TRACKS',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Icon(
+                  Icons.bubble_chart_outlined,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
             ),
           ),
         ),
@@ -338,7 +355,7 @@ class _HomeState extends State<Home> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 15,
@@ -356,33 +373,41 @@ class _HomeState extends State<Home> {
   Widget _buildSongCard(Music music, {double? width}) {
     return SizedBox(
       width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: Image.network(
-                music.image,
-                fit: BoxFit.cover,
-                width: double.infinity,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (context) => MusicDetail(music: music,)),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Image.network(
+                  music.image,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            music.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 8),
+            Text(
+              music.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            music.artist,
-            style: TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-        ],
+            Text(
+              music.artist,
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }
