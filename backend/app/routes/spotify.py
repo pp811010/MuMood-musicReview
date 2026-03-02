@@ -26,11 +26,11 @@ def get_token():
 # --- เพิ่ม Route สำหรับดึงเพลงยอดนิยมลง DB ---
 @router.post("/import-top-charts")
 async def import_top_charts(db: Session = Depends(get_db)):
-    """ดึงเพลงจาก Top 50 Thailand และ Global มาลง Database"""
     token = get_token()
+    print(f"Token ที่ได้รับ: {token}") #
     headers = {"Authorization": f"Bearer {token}"}
+    print(headers)
     
-    # List ของ Playlist ID (Top 50 TH และ Global)
     chart_ids = [
         "37i9dQZEVXbMn2vY6UIp4o", # Top 50 Thailand
         "37i9dQZEVXbMDoHDw32tY1"  # Top 50 Global
@@ -38,42 +38,38 @@ async def import_top_charts(db: Session = Depends(get_db)):
     
     total_imported = 0
     
-    for playlist_id in chart_ids:
-        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks?limit=50"
-        response = requests.get(url, headers=headers)
+
+    # url = f"https://api.spotify.com/v1/playlists/37i9dQZEVXbMn2vY6UIp4o/tracks"
+    # response = requests.get(url, headers=headers)
+    
+    # # if response.status_code != 200:
+    # #     print(f"Error {response.status_code}: {response.text}") # พิมพ์ดู Error ใน Terminal
+    # #     continue
         
-        if response.status_code != 200:
-            continue
-            
-        data = response.json()
-        items = data.get('items', [])
-        
-        for item in items:
-            track = item.get('track')
-            if not track: continue
-            
-            # ตรวจสอบว่ามีเพลงนี้ใน DB หรือยัง (ป้องกันข้อมูลซ้ำ)
-            exists = db.query(Song).filter(Song.spotify_id == track['id']).first()
-            
-            if not exists:
-                new_song = Song(
-                    spotify_id=track['id'],
-                    song_name=track['name'],
-                    artist_name=track['artists'][0]['name'] if track['artists'] else "Unknown Artist",
-                    album_name=track['album']['name'] if track.get('album') else None,
-                    song_cover_url=track['album']['images'][0]['url'] if track['album'].get('images') else None,
-                    preview_url=track.get('preview_url'), # ลิงก์เล่นเพลง 30 วิ
-                    is_custom_added=False
-                )
-                db.add(new_song)
-                total_imported += 1
-                
-    try:
-        db.commit() # บันทึกข้อมูลทั้งหมดลง Postgres
-        return {"status": "success", "message": f"Imported {total_imported} new songs from top charts."}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    # data = response.json()
+    # items = data.get('items', [])
+    # results = []
+    
+    # for item in items:
+    #     track = item.get('track')
+    #     if not track or not track.get('id'): continue
+    #     results.append(
+    #         {
+    #             "id": track['id'], 
+    #             "song_name": track['name'],
+    #             "artist_name": track['artists'][0]['name'] if track['artists'] else "Unknown Artist",
+    #             "album_name": track['album']['name'] if track.get('album') else None,
+    #             "song_cover_url": track['album']['images'][0]['url'] if track['album'].get('images') else None,
+    #             "preview_url": track.get('preview_url'),
+    #             "is_custom_added": False
+    #         }
+    #     )
+
+    url = "https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDw32tY1/tracks"
+    response = requests.get(url, headers=headers)
+    print(response.status_code, response.json())
+    # return {"status": "success", "result": data}
+
 
 @router.get("/all-songs")
 async def get_all_songs(db: Session = Depends(get_db)):
@@ -103,17 +99,23 @@ async def search_music(q: str = Query(...)):
     response = requests.get(search_url, headers=headers)
     data = response.json()
     
-    # ตรวจสอบว่ามีข้อมูล tracks ส่งกลับมาจริงไหม
     if 'tracks' not in data:
         return {"results": [], "error": "No tracks found"}
 
-    tracks = []
+    results = []
     for item in data.get('tracks', {}).get('items', []):
-        # ใช้ .get() เพื่อป้องกัน KeyError หากไม่มี Key นั้นๆ
-        tracks.append({
+        images = item.get('album', {}).get('images', [])
+        image_url = images[0].get('url') if images else None
+        
+        artists = item.get('artists', [])
+        artist_name = artists[0].get('name') if artists else "Unknown Artist"
+
+        results.append({
+            "id": item.get('id'),
             "name": item.get('name'),
-            "artist": item.get('artists', [{}])[0].get('name') if item.get('artists') else "Unknown Artist",
-            "preview_url": item.get('preview_url'),  # ถ้าไม่มีจะเป็น None แทนที่จะ Error
-            "image": item.get('album', {}).get('images', [{}])[0].get('url') if item.get('album', {}).get('images') else None
+            "artist": artist_name,
+            "image": image_url,
+            "preview_url": item.get('preview_url')
         })
-    return {"results": tracks}
+        
+    return {"results": results}

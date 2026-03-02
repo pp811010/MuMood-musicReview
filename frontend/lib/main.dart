@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/login.dart';
 import 'screens/admin/Inventory_page.dart';
-import 'widgets/main_wrapper.dart';
 
 void main() {
   runApp(const MyApp());
