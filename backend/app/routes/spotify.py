@@ -32,8 +32,8 @@ async def import_top_charts(db: Session = Depends(get_db)):
     
     # List ของ Playlist ID (Top 50 TH และ Global)
     chart_ids = [
-        "37i9dQZEVXbMn2vY6UIp4o", # Top 50 Thailand
-        "37i9dQZEVXbMDoHDw32tY1"  # Top 50 Global
+        "36rTan768eGvGTNHXBC5Xd", # Top 50 Thailand
+        "37i9dQZF1DX18jTM2l2fJY"  # Top 50 Global
     ]
     
     total_imported = 0
@@ -117,3 +117,53 @@ async def search_music(q: str = Query(...)):
             "image": item.get('album', {}).get('images', [{}])[0].get('url') if item.get('album', {}).get('images') else None
         })
     return {"results": tracks}
+
+
+@router.get("/search-playlists")
+async def search_playlists(q: str = Query(...)):
+    """ค้นหา Playlist จาก Spotify เพื่อเอา ID มาใช้ Import"""
+    # 1. รับ Token (ตรวจสอบว่าเป็นแบบ Async หรือไม่ตามที่คุณปรับจูนล่าสุด)
+    token = get_token() 
+    if not token:
+        return {"results": [], "error": "Failed to get token"}
+
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 2. ปรับ Parameter: type=playlist
+    # แนะนำให้ใช้ params dict เพื่อป้องกันปัญหา URL Encoding
+    search_url = "https://api.spotify.com/v1/search"
+    params = {
+        "q": q,
+        "type": "playlist",
+        "limit": 10
+    }
+    
+    try:
+        response = requests.get(search_url, headers=headers, params=params)
+        
+        if response.status_code != 200:
+            return {"results": [], "error": f"Spotify API Error: {response.status_code}"}
+            
+        data = response.json()
+        
+        # 3. ตรวจสอบข้อมูลในกลุ่ม playlists
+        if 'playlists' not in data:
+            return {"results": [], "error": "No playlists found"}
+
+        playlists = []
+        for item in data.get('playlists', {}).get('items', []):
+            if not item: continue
+            
+            playlists.append({
+                "playlist_id": item.get('id'), # สำคัญ: เอาไว้นำไปใส่ใน chart_ids เพื่อ Import
+                "name": item.get('name'),
+                "owner": item.get('owner', {}).get('display_name'),
+                "image": item.get('images', [{}])[0].get('url') if item.get('images') else None,
+                "track_count": item.get('tracks', {}).get('total'),
+                "external_url": item.get('external_urls', {}).get('spotify')
+            })
+            
+        return {"results": playlists}
+        
+    except Exception as e:
+        return {"results": [], "error": str(e)}
