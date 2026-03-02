@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// import 'screens/admin/Inventory_page.dart';
+import 'screens/admin/Inventory_page.dart';
 import 'screens/Login.dart';
 
 void main() {
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MuMood',
       theme: ThemeData(),
-      home: const Login(),
+      home: const InventoryPage(),
     );
   }
 }

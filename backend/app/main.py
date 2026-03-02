@@ -4,6 +4,7 @@ from app.routes import admin
 from app.routes import favourites
 from app.routes import spotify
 import requests
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi import FastAPI
@@ -20,6 +21,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(spotify.router)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def root():
