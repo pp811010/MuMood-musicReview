@@ -13,7 +13,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     favorite_genres = Column(String)
     bio = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
     # Relationships
     reviews = relationship("Review", back_populates="user")
@@ -24,14 +24,17 @@ class Song(Base):
     __tablename__ = "songs"
 
     id = Column(Integer, primary_key=True, index=True)
-    spotify_id = Column(String, unique=True, index=True, nullable=True) # null if admin added
+    spotify_id = Column(String, unique=True, index=True, nullable=True) 
     song_name = Column(String, nullable=False)
-    album_name = Column(String)
-    artist_name = Column(String)
-    song_cover_url = Column(String)
-    category = Column(String)
+    album_name = Column(String, nullable=True)
+    artist_name = Column(String, nullable=True)
+    song_cover_url = Column(String, nullable=True)
+    preview_url = Column(String, nullable=True) 
+    category = Column(String, nullable=True)
     is_custom_added = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # แก้ไขบรรทัดนี้: เปลี่ยนจาก datetime.timezone.utc เป็น datetime.utcnow
+    created_at = Column(DateTime, default=datetime.datetime.utcnow) 
 
     # Relationships
     reviews = relationship("Review", back_populates="song")
@@ -87,7 +90,7 @@ class Favorite(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     song_id = Column(Integer, ForeignKey("songs.id"))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
     user = relationship("User", back_populates="favorites")
     song = relationship("Song", back_populates="favorited_by")
