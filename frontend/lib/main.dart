@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/admin/Inventory_page.dart';
+// import 'screens/admin/Inventory_page.dart';
+import 'screens/Login.dart';
 
 void main() {
   runApp(const MyApp());
