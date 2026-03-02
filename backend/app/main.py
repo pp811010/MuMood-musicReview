@@ -1,6 +1,7 @@
 from typing import Union
 from app.routes import auth
 from app.routes import admin
+from app.routes import favourites
 from app.routes import spotify
 import requests
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,6 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
-app.include_router(spotify.router)
 
 @app.get("/")
 def root():

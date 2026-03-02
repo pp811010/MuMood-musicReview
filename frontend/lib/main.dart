@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MuMood',
       theme: ThemeData(),
-      home: InventoryPage(),
+      home: const Login(),
     );
   }
 }
