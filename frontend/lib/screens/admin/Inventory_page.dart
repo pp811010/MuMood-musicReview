@@ -12,40 +12,81 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  List<dynamic> songs = []; 
+  List<dynamic> dbSongs = []; // เพลงที่อยู่ใน PostgreSQL
+  List<dynamic> spotifySongs = []; // ผลการค้นหาใหม่จาก Spotify API
   bool isLoading = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
 
-  // ฟังก์ชันดึงข้อมูลจาก FastAPI
-  Future<void> fetchSongs(String query) async {
-    if (query.isEmpty) return;
-    
+  // กำหนด IP ของ Backend (10.0.2.2 สำหรับ Android Emulator)
+  static const String baseUrl = "http://10.0.2.2:8000";
+
+  @override
+  void initState() {
+    super.initState();
+    loadSongsFromDb(); // โหลดเพลงจาก DB ทันทีเมื่อเข้าหน้า
+  }
+
+  // 1. ฟังก์ชันดึงเพลงทั้งหมดจาก DB (เรียกใช้ @router.get("/spotify/all-songs"))
+  Future<void> loadSongsFromDb() async {
     setState(() => isLoading = true);
     try {
-      // เปลี่ยน IP เป็นเลขเครื่องคอมพิวเตอร์ของคุณ (ถ้าใช้ Android Emulator ให้ใช้ 10.0.2.2)
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/spotify/search?q=$query'),
-      );
-
+      final response = await http.get(Uri.parse('$baseUrl/spotify/all-songs'));
       if (response.statusCode == 200) {
         setState(() {
-          songs = json.decode(response.body)['results'];
+          dbSongs = json.decode(response.body)['results'];
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() => isLoading = false);
-      debugPrint("Error fetching songs: $e");
+      debugPrint("Error loading from DB: $e");
     }
   }
 
-  // ฟังก์ชันเล่นเพลง Preview
+  Future<void> fetchSongsFromSpotify(String query) async {
+    // 1. ถ้าช่องค้นหาว่าง ให้รีเซ็ตกลับไปแสดงเพลงทั้งหมดจาก DB
+    if (query.trim().isEmpty) {
+      setState(() {
+        spotifySongs = []; // ล้างผลการค้นหาจาก Spotify
+      });
+      await loadSongsFromDb(); // ดึงเพลงทั้งหมดกลับมาโชว์ใน Tab All/Custom
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      // 2. เรียก API ค้นหาแบบ Hybrid (DB + Spotify)
+      final response = await http.get(
+        Uri.parse('$baseUrl/songs/search?q=$query'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> searchResults = json.decode(
+          response.body,
+        )['results'];
+
+        setState(() {
+          // กรองเพลงที่ตรงตามคำค้นหามาแสดงผล
+          dbSongs = searchResults.where((s) => s['source'] == 'db').toList();
+          spotifySongs = searchResults
+              .where((s) => s['source'] == 'spotify')
+              .toList();
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      debugPrint("Search error: $e");
+    }
+  }
+
   void _togglePreview(String? url) async {
     if (url == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No preview available for this song")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No preview available")));
       return;
     }
     await _audioPlayer.play(UrlSource(url));
@@ -77,26 +118,30 @@ class _InventoryPageState extends State<InventoryPage> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Search music by mood...",
+                hintText: "Search music...",
                 hintStyle: TextStyle(color: Colors.white38),
                 prefixIcon: Icon(Icons.search, color: Colors.white38),
                 border: InputBorder.none,
               ),
-              onSubmitted: (value) => fetchSongs(value), // กด Enter เพื่อค้นหา
+              onSubmitted: (value) => fetchSongsFromSpotify(value),
             ),
           ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(50),
             child: Align(
-              alignment: Alignment.bottomLeft,
+              alignment: Alignment.centerLeft,
               child: TabBar(
                 isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 dividerColor: Colors.transparent,
-                indicatorColor: Colors.white,
-                indicatorSize: TabBarIndicatorSize.label,
+                indicatorColor: Colors.green,
+                indicatorWeight: 3,
                 labelColor: Colors.white,
-                unselectedLabelColor: Colors.grey,
-                labelStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                unselectedLabelColor: Colors.white38,
+                labelStyle: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
                 tabs: const [
                   Tab(text: "All"),
                   Tab(text: "Spotify"),
@@ -106,29 +151,42 @@ class _InventoryPageState extends State<InventoryPage> {
             ),
           ),
         ),
-        body: isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Colors.green))
-          : TabBarView(
-              children: [
-                _buildMusicGrid("All"),
-                _buildMusicGrid("Spotify"),
-                _buildMusicGrid("Custom"),
-              ],
-            ),
+        body: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.green),
+              )
+            : TabBarView(
+                children: [
+                  _buildMusicGrid(dbSongs, "All"), // เพลงทั้งหมดใน DB
+                  _buildMusicGrid([
+                    ...spotifySongs, // ผลการค้นหาใหม่จาก API
+                    ...dbSongs
+                        .where((s) => s['is_custom'] == false)
+                        .toList(), // เพลง Spotify ใน DB
+                  ], "Spotify"), // ผลการค้นหาใหม่
+                  _buildMusicGrid(
+                    dbSongs.where((s) => s['is_custom'] == true).toList(),
+                    "Custom",
+                  ), // เพลงที่เพิ่มเอง
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildMusicGrid(String type) {
-    // กรองเพลงตามประเภท (ในที่นี้ข้อมูลจาก Spotify จะไม่มี is_custom)
-    List<dynamic> filteredSongs = songs.where((s) {
-      if (type == "Spotify") return s['preview_url'] != null; // ตรวจสอบว่าเป็นเพลงจาก Spotify
-      if (type == "Custom") return s['is_custom'] == true;
-      return true;
-    }).toList();
+  Widget _buildMusicGrid(List<dynamic> displaySongs, String type) {
+    bool showAddButton = (type == "All" || type == "Custom");
+    int itemCount = showAddButton
+        ? displaySongs.length + 1
+        : displaySongs.length;
 
-    if (filteredSongs.isEmpty) {
-      return _buildEmptyState(type);
+    if (displaySongs.isEmpty && !showAddButton) {
+      return Center(
+        child: Text(
+          "No songs found in $type",
+          style: const TextStyle(color: Colors.white54),
+        ),
+      );
     }
 
     return GridView.builder(
@@ -139,19 +197,70 @@ class _InventoryPageState extends State<InventoryPage> {
         crossAxisSpacing: 15,
         mainAxisSpacing: 15,
       ),
-      itemCount: filteredSongs.length,
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        final song = filteredSongs[index];
+        if (showAddButton && index == 0) return _buildAddCustomMusicCard();
+
+        final songIndex = showAddButton ? index - 1 : index;
+        final song = displaySongs[songIndex];
+
         return GestureDetector(
-          onTap: () => _togglePreview(song['preview_url']), // กดแล้วเล่นเพลง
+          onTap: () => _togglePreview(song['preview_url']),
           child: _buildMusicCard(song),
         );
       },
     );
   }
 
-  // --- ปรับปรุง Card ให้รับข้อมูลจาก API ---
+  Widget _buildAddCustomMusicCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CreatemusicPage()),
+        ).then((_) => loadSongsFromDb()); // Refresh เมื่อกลับมาจากหน้าเพิ่มเพลง
+      },
+      child: Container(
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4DB6AC),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 50),
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              "Add New Song",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMusicCard(Map<String, dynamic> song) {
+    String rawImageUrl = song['image'] ?? "";
+    String finalImageUrl = "";
+
+    if (rawImageUrl.startsWith("http")) {
+      finalImageUrl = rawImageUrl;
+    } else if (rawImageUrl.startsWith("/static")) {
+      finalImageUrl = "$baseUrl$rawImageUrl";
+    } else if (rawImageUrl.isNotEmpty) {
+      finalImageUrl = "$baseUrl/$rawImageUrl";
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
@@ -162,21 +271,36 @@ class _InventoryPageState extends State<InventoryPage> {
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               child: Image.network(
-                song['image'] ?? "https://via.placeholder.com/150", // ใช้ Key 'image' จาก FastAPI
+                finalImageUrl.isNotEmpty
+                    ? finalImageUrl
+                    : "https://via.placeholder.com/150",
                 fit: BoxFit.cover,
                 width: double.infinity,
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(
+                    Icons.music_note,
+                    size: 50,
+                    color: Colors.white24,
+                  ),
+                ),
               ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   song['name'] ?? "Unknown",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -184,18 +308,20 @@ class _InventoryPageState extends State<InventoryPage> {
                   song['artist'] ?? "Unknown Artist",
                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
-                const SizedBox(height: 4),
                 if (song['preview_url'] != null)
-                  const Icon(Icons.play_circle_fill, color: Colors.green, size: 20),
+                  const Align(
+                    alignment: Alignment.bottomRight,
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                  ),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildEmptyState(String type) {
-     return Center(child: Text("Search for music to see results", style: TextStyle(color: Colors.white54)));
   }
 }

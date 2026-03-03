@@ -5,6 +5,7 @@ from app.routes import favorite, song
 from app.routes import spotify
 import requests
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from fastapi import FastAPI
 
@@ -25,6 +26,9 @@ app.include_router(song.router)
 app.include_router(spotify.router)
 app.include_router(review.router)
 app.include_router(favorite.router)
+
+# mount image path file
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")

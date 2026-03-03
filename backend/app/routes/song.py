@@ -10,6 +10,8 @@ from app.services.spotify import get_spotify_token
 
 router = APIRouter(prefix="/songs", tags=["Songs"])
 
+BASE_URL = "http://10.0.2.2:8000"
+
 # 1. SEARCH: ค้นหาทั้งใน DB และ Spotify พร้อมกัน (รวมผลลัพธ์)
 @router.get("/search")
 async def search_songs(q: str, db: SessionDep):
@@ -17,8 +19,11 @@ async def search_songs(q: str, db: SessionDep):
 
     # 1. ค้นหาใน DB ของเราก่อน
     stmt = select(Song).where(
-        or_(Song.song_name.ilike(f"%{q}%"), Song.artist_name.ilike(f"%{q}%"))
-    ).limit(10)
+        or_(
+            Song.song_name.ilike(f"%{q}%"), 
+            Song.artist_name.ilike(f"%{q}%")
+        )
+    ).limit(15)
     result = await db.execute(stmt)
     db_songs = result.scalars().all()
     
