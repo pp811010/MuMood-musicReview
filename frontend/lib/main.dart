@@ -3,6 +3,7 @@ import 'package:frontend/screens/Login.dart';
 // import 'screens/admin/Inventory_page.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
