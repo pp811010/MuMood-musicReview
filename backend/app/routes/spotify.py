@@ -9,6 +9,7 @@ from app.services.spotify import get_spotify_token
 
 router = APIRouter(prefix="/spotify", tags=["Spotify"])
 
+BASE_URL = "http://10.0.2.2:8000"
 
 @router.get("/top-charts")
 async def get_top_charts():
@@ -73,19 +74,26 @@ async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
 
 @router.get("/all-songs")
 async def get_all_songs(db: SessionDep):
-    result = await db.execute(select(Song).order_by(Song.created_at.desc()))
+    """ดึงเพลงทั้งหมดพร้อมจัดการ Path รูปภาพให้สมบูรณ์"""
+    result = await db.execute(select(Song).order_by(Song.id.desc()))
     songs = result.scalars().all()
 
-    return {"results": [{
-        "id": s.id,
-        "spotify_id": s.spotify_id,
-        "name": s.song_name,
-        "artist": s.artist_name,
-        "image": s.song_cover_url,
-        "preview_url": s.preview_url,
-        "is_custom": s.is_custom_added
-    } for s in songs]}
-
+    results = []
+    for s in songs:
+        img_url = s.song_cover_url
+        if img_url and img_url.startswith("/static"):
+            img_url = f"{BASE_URL}{img_url}"
+            
+        results.append({
+            "id": s.id,
+            "spotify_id": s.spotify_id,
+            "name": s.song_name,
+            "artist": s.artist_name,
+            "image": img_url,
+            "preview_url": s.preview_url,
+            "is_custom": s.is_custom_added
+        })
+    return {"results": results}
 
 @router.get("/search")
 async def search_music(q: str = Query(...)):
@@ -107,7 +115,8 @@ async def search_music(q: str = Query(...)):
         "name": item["name"],
         "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
         "image": item["album"]["images"][0]["url"] if item.get("album") and item["album"].get("images") else None,
-        "preview_url": item.get("preview_url")
+        "preview_url": item.get("preview_url"),
+        "is_custom": False
     } for item in data["tracks"]["items"]]
 
     return {"results": results}

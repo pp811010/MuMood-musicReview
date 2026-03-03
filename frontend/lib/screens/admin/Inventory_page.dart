@@ -88,7 +88,7 @@ class _InventoryPageState extends State<InventoryPage> {
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(50),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.bottomLeft,
               child: TabBar(
                 isScrollable: true,
                 dividerColor: Colors.transparent,
