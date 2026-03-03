@@ -1,121 +1,128 @@
+# app/routers/spotify.py  ← แก้ให้ใช้ async httpx ทั้งหมด
+
 from fastapi import APIRouter, Query, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.database import get_db  # ตรวจสอบ path ของ get_db ของคุณ
-from app.models import Song # ตรวจสอบ path ของ Model Song ของคุณ
-import requests
-import base64
+import httpx
+from sqlalchemy import select
+from app.database import SessionDep
+from app.models import Song
+from app.services.spotify import get_spotify_token 
 
 router = APIRouter(prefix="/spotify", tags=["Spotify"])
 
-CLIENT_ID = 'a9d74c8adc794984bd92c755bf5f6c7c'
-CLIENT_SECRET = '9596a8a1632a453cb918b00d1972559c'
 
-def get_token():
-    auth_string = f"{CLIENT_ID}:{CLIENT_SECRET}"
-    auth_base64 = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
-    url = "https://accounts.spotify.com/api/token"
-    headers = {
-        "Authorization": f"Basic {auth_base64}",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    data = {"grant_type": "client_credentials"}
-    response = requests.post(url, headers=headers, data=data)
-    return response.json().get("access_token")
-
-
-# --- เพิ่ม Route สำหรับดึงเพลงยอดนิยมลง DB ---
-@router.post("/import-top-charts")
-async def import_top_charts(db: Session = Depends(get_db)):
-    token = get_token()
-    print(f"Token ที่ได้รับ: {token}") #
+@router.get("/top-charts")
+async def get_top_charts():
+    token = await get_spotify_token()
     headers = {"Authorization": f"Bearer {token}"}
-    print(headers)
-    
-    chart_ids = [
-        "37i9dQZEVXbMn2vY6UIp4o", # Top 50 Thailand
-        "37i9dQZEVXbMDoHDw32tY1"  # Top 50 Global
-    ]
-    
-    total_imported = 0
-    
+    results = {"TH": [], "US": []}
 
-    # url = f"https://api.spotify.com/v1/playlists/37i9dQZEVXbMn2vY6UIp4o/tracks"
-    # response = requests.get(url, headers=headers)
-    
-    # # if response.status_code != 200:
-    # #     print(f"Error {response.status_code}: {response.text}") # พิมพ์ดู Error ใน Terminal
-    # #     continue
-        
-    # data = response.json()
-    # items = data.get('items', [])
-    # results = []
-    
-    # for item in items:
-    #     track = item.get('track')
-    #     if not track or not track.get('id'): continue
-    #     results.append(
-    #         {
-    #             "id": track['id'], 
-    #             "song_name": track['name'],
-    #             "artist_name": track['artists'][0]['name'] if track['artists'] else "Unknown Artist",
-    #             "album_name": track['album']['name'] if track.get('album') else None,
-    #             "song_cover_url": track['album']['images'][0]['url'] if track['album'].get('images') else None,
-    #             "preview_url": track.get('preview_url'),
-    #             "is_custom_added": False
-    #         }
-    #     )
+    async with httpx.AsyncClient() as client:
+        for market in ["TH", "US"]:
+            response = await client.get(
+                "https://api.spotify.com/v1/search",
+                headers=headers,
+                params={"q": "year:2024-2025", "type": "track", "market": market, "limit": 10}
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail=response.json())
 
-    url = "https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDw32tY1/tracks"
-    response = requests.get(url, headers=headers)
-    print(response.status_code, response.json())
-    # return {"status": "success", "result": data}
+            tracks = response.json()["tracks"]["items"]
+            tracks.sort(key=lambda x: x.get("popularity") or 0, reverse=True)
+
+            for track in tracks:
+                results[market].append({
+                    "id": track["id"],
+                    "song_name": track["name"],
+                    "artist_name": track["artists"][0]["name"] if track.get("artists") else "Unknown",
+                    "album_name": track["album"]["name"] if track.get("album") else None,
+                    "song_cover_url": track["album"]["images"][0]["url"] if track.get("album") and track["album"].get("images") else None,
+                    "preview_url": track.get("preview_url"),
+                    "popularity": track.get("popularity") or 0,
+                    "spotify_url": track["external_urls"]["spotify"]
+                })
+
+    return {"status": "success", "charts": results}
+
+
+@router.get("/songs-by-genre")
+async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
+    token = await get_spotify_token()
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": f"genre:{genre}", "type": "track", "limit": limit, "market": "US"}
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+
+        tracks = response.json()["tracks"]["items"]
+
+    results = [{
+        "id": t["id"],
+        "song_name": t["name"],
+        "artist_name": t["artists"][0]["name"] if t.get("artists") else "Unknown",
+        "album_name": t["album"]["name"] if t.get("album") else None,
+        "song_cover_url": t["album"]["images"][0]["url"] if t.get("album") and t["album"].get("images") else None,
+        "preview_url": t.get("preview_url")
+    } for t in tracks]
+
+    return {"status": "success", "genre": genre, "songs": results}
 
 
 @router.get("/all-songs")
-async def get_all_songs(db: Session = Depends(get_db)):
-    """ดึงเพลงทั้งหมดที่เก็บไว้ใน Database ของเราเองออกมาโชว์"""
-    db_songs = db.query(Song).order_by(Song.created_at.desc()).all()
-    
-    results = []
-    for song in db_songs:
-        results.append({
-            "id": song.id,
-            "spotify_id": song.spotify_id,
-            "name": song.song_name, # Map ให้ตรงกับที่ Flutter รอรับ
-            "artist": song.artist_name,
-            "image": song.song_cover_url,
-            "preview_url": song.preview_url, #
-            "is_custom": song.is_custom_added
-        })
-    return {"results": results}
+async def get_all_songs(db: SessionDep):
+    result = await db.execute(select(Song).order_by(Song.created_at.desc()))
+    songs = result.scalars().all()
+
+    return {"results": [{
+        "id": s.id,
+        "spotify_id": s.spotify_id,
+        "name": s.song_name,
+        "artist": s.artist_name,
+        "image": s.song_cover_url,
+        "preview_url": s.preview_url,
+        "is_custom": s.is_custom_added
+    } for s in songs]}
 
 
 @router.get("/search")
 async def search_music(q: str = Query(...)):
-    token = get_token()
-    headers = {"Authorization": f"Bearer {token}"}
-    search_url = f"https://api.spotify.com/v1/search?q={q}&type=track&limit=10"
-    
-    response = requests.get(search_url, headers=headers)
-    data = response.json()
-    
-    if 'tracks' not in data:
+    token = await get_spotify_token()
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": q, "type": "track", "limit": 10}
+        )
+        data = response.json()
+
+    if "tracks" not in data:
         return {"results": [], "error": "No tracks found"}
 
-    results = []
-    for item in data.get('tracks', {}).get('items', []):
-        images = item.get('album', {}).get('images', [])
-        image_url = images[0].get('url') if images else None
-        
-        artists = item.get('artists', [])
-        artist_name = artists[0].get('name') if artists else "Unknown Artist"
+    results = [{
+        "id": item["id"],
+        "name": item["name"],
+        "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
+        "image": item["album"]["images"][0]["url"] if item.get("album") and item["album"].get("images") else None,
+        "preview_url": item.get("preview_url")
+    } for item in data["tracks"]["items"]]
 
-        results.append({
-            "id": item.get('id'),
-            "name": item.get('name'),
-            "artist": artist_name,
-            "image": image_url,
-            "preview_url": item.get('preview_url')
-        })
-        
     return {"results": results}
+
+
+@router.get("/get-detail/{spotify_id}")
+async def get_music(spotify_id: str):
+    token = await get_spotify_token()
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.spotify.com/v1/tracks/{spotify_id}",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+
+    return {"results": response.json()}
