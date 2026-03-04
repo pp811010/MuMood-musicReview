@@ -85,7 +85,7 @@ class Favorite(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     song_id = Column(Integer, ForeignKey("songs.id"), nullable=False)
-    created_at =  Column(DateTime(timezone=True), default=get_now_)
+    created_at =  Column(DateTime(timezone=True), default=get_now_utc)
 
     user = relationship("User", back_populates="favorites")
     song = relationship("Song", back_populates="favorited_by")
