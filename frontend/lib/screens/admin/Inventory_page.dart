@@ -61,7 +61,6 @@ class _InventoryPageState extends State<InventoryPage> {
       final response = await http.get(
         Uri.parse('$baseUrl/songs/search?q=$query'),
       );
-
       if (response.statusCode == 200) {
         final List<dynamic> searchResults = json.decode(
           response.body,
@@ -84,6 +83,9 @@ class _InventoryPageState extends State<InventoryPage> {
 
   void _togglePreview(String? url) async {
     if (url == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No preview available")));
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("No preview available")));
@@ -119,6 +121,7 @@ class _InventoryPageState extends State<InventoryPage> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
+                hintText: "Search music...",
                 hintText: "Search music...",
                 hintStyle: TextStyle(color: Colors.white38),
                 prefixIcon: Icon(Icons.search, color: Colors.white38),
@@ -188,6 +191,13 @@ class _InventoryPageState extends State<InventoryPage> {
           style: const TextStyle(color: Colors.white54),
         ),
       );
+    if (displaySongs.isEmpty && !showAddButton) {
+      return Center(
+        child: Text(
+          "No songs found in $type",
+          style: const TextStyle(color: Colors.white54),
+        ),
+      );
     }
 
     return GridView.builder(
@@ -198,6 +208,7 @@ class _InventoryPageState extends State<InventoryPage> {
         crossAxisSpacing: 15,
         mainAxisSpacing: 15,
       ),
+      itemCount: itemCount,
       itemCount: itemCount,
       itemBuilder: (context, index) {
         if (showAddButton && index == 0) return _buildAddCustomMusicCard();
@@ -275,12 +286,22 @@ class _InventoryPageState extends State<InventoryPage> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
               ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               child: Image.network(
                 finalImageUrl.isNotEmpty
                     ? finalImageUrl
                     : "https://via.placeholder.com/150",
                 fit: BoxFit.cover,
                 width: double.infinity,
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(
+                    Icons.music_note,
+                    size: 50,
+                    color: Colors.white24,
+                  ),
+                ),
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(
                     Icons.music_note,
@@ -295,9 +316,14 @@ class _InventoryPageState extends State<InventoryPage> {
             padding: const EdgeInsets.all(8.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   song['name'] ?? "Unknown",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -310,6 +336,14 @@ class _InventoryPageState extends State<InventoryPage> {
                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
                 if (song['preview_url'] != null)
+                  const Align(
+                    alignment: Alignment.bottomRight,
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                  ),
                   const Align(
                     alignment: Alignment.bottomRight,
                     child: Icon(

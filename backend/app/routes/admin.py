@@ -7,9 +7,7 @@ from app.database import get_db
 from app.models import Song
 import os
 import uuid
-# import shutil
-# เปลี่ยนจากการใช้ shutil มาใช้ aiofiles เพื่อจัดการไฟล์แบบไม่ขัดจังหวะการบันทึกข้อมูลลง DB
-import aiofiles
+import aiofiles # ใช้สำหรับ Async File I/O
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -60,9 +58,11 @@ async def create_custom_song(
             category=category,
             artist_name=artist_name,
             album_name=album_name,
-            song_cover_url=f"/{file_path}",
+            # บันทึก URL สำหรับเข้าถึงรูปภาพ (ควรนำหน้าด้วย http://... เมื่อส่งไป Flutter)
+            song_cover_url=f"/static/song_covers/{unique_filename}",
             is_custom_added=True
         )
+        
         db.add(new_song)
         await db.commit() # สำคัญมาก: ต้อง await ถ้าเป็น AsyncSession
         await db.refresh(new_song)
@@ -72,3 +72,19 @@ async def create_custom_song(
     except Exception as e:
         await db.rollback() # ย้อนคืนข้อมูลหากเกิด Error
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search-metadata")
+async def search_metadata(query: str, db: AsyncSession = Depends(get_db)):
+    """ค้นหาข้อมูลศิลปิน/อัลบั้มที่มีอยู่แล้วเพื่อช่วย User พิมพ์"""
+    # ค้นหาศิลปิน
+    artist_stmt = select(Song.artist_name).where(Song.artist_name.ilike(f"%{query}%")).distinct()
+    artist_res = await db.execute(artist_stmt)
+    
+    # ค้นหาอัลบั้ม
+    album_stmt = select(Song.album_name).where(Song.album_name.ilike(f"%{query}%")).distinct()
+    album_res = await db.execute(album_stmt)
+    
+    return {
+        "artists": [a[0] for a in artist_res.all() if a[0]],
+        "albums": [a[0] for a in album_res.all() if a[0]]
+    }

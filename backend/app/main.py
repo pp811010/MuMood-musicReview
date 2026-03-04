@@ -4,6 +4,7 @@ from app.routes import admin
 from app.routes import favorite, song
 from app.routes import spotify
 import requests
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
