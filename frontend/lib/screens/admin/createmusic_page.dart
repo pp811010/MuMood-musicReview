@@ -22,13 +22,12 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   String? _selectedCategory;
   bool _isUploading = false;
 
-  // รายการแนะนำ (Suggestions) สำหรับ Autocomplete
   List<String> _suggestedArtists = [];
   List<String> _suggestedAlbums = [];
 
   final List<String> _categories = ['Pop', 'Rock', 'Jazz', 'Hip-Hop', 'Classical', 'R&B'];
 
-  // --- Logic: ดึงข้อมูลแนะนำจาก Backend ---
+  // --- Logic: ดึงข้อมูลแนะนำจาก Database ---
   Future<void> _fetchMetadataSuggestions(String query, bool isArtist) async {
     if (query.length < 2) {
       setState(() {
@@ -94,11 +93,13 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       request.fields['artist_name'] = _artistNameController.text.trim();
       request.fields['album_name'] = _albumNameController.text.trim();
 
-      var multipartFile = await http.MultipartFile.fromPath(
-        'file', 
-        _imageFile!.path
+      // ✅ ใช้ fromPath เพื่อแก้ปัญหา PathNotFoundException
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file', 
+          _imageFile!.path
+        )
       );
-      request.files.add(multipartFile);
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
@@ -106,7 +107,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         _showSnackBar("Song created successfully!", Colors.green);
         Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) Navigator.pop(context, true); // ส่งค่า true เพื่อบอกหน้าก่อนหน้าให้ Refresh
+          if (mounted) Navigator.pop(context, true); 
         });
       } else {
         var errorMsg = json.decode(response.body)['detail'] ?? "Upload failed";
@@ -167,7 +168,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
     );
   }
 
-  // --- UI Helpers ---
+  // --- UI Components ---
 
   Widget _buildImagePicker() {
     return Center(

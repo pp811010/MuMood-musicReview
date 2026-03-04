@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'screens/admin/Inventory_page.dart';
-import 'screens/Login.dart';
+import 'package:frontend/screens/Login.dart';
+import 'package:frontend/screens/admin/admin_app.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -15,7 +16,13 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MuMood',
       theme: ThemeData(),
-      home: const InventoryPage(),
+      home: const Login(),
+
+      // เผื่อใช้
+      routes: {
+        '/login': (context) => const Login(),
+        '/admin' : (context) => const AdminApp(),
+      },
     );
   }
 }

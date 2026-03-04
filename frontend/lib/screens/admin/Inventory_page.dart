@@ -12,25 +12,26 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  List<dynamic> dbSongs = []; // สำหรับเก็บเพลงจากฐานข้อมูลเราเอง
-  List<dynamic> spotifySongs = []; // สำหรับเก็บผลการค้นหาจาก Spotify API
+  List<dynamic> dbSongs = []; // เพลงที่อยู่ใน PostgreSQL
+  List<dynamic> spotifySongs = []; // ผลการค้นหาใหม่จาก Spotify API
   bool isLoading = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
 
+  // กำหนด IP ของ Backend (10.0.2.2 สำหรับ Android Emulator)
+  static const String baseUrl = "http://10.0.2.2:8000";
+
   @override
   void initState() {
     super.initState();
-    loadSongsFromDb(); // ดึงเพลงจาก DB ทันทีเมื่อเข้าหน้า
+    loadSongsFromDb(); // โหลดเพลงจาก DB ทันทีเมื่อเข้าหน้า
   }
 
-  // 1. ฟังก์ชันดึงเพลงทั้งหมดจาก DB
+  // 1. ฟังก์ชันดึงเพลงทั้งหมดจาก DB (เรียกใช้ @router.get("/spotify/all-songs"))
   Future<void> loadSongsFromDb() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/spotify/all-songs'),
-      );
+      final response = await http.get(Uri.parse('$baseUrl/spotify/all-songs'));
       if (response.statusCode == 200) {
         setState(() {
           dbSongs = json.decode(response.body)['results'];
@@ -43,29 +44,48 @@ class _InventoryPageState extends State<InventoryPage> {
     }
   }
 
-  // 2. ฟังก์ชันค้นหาเพลงจาก Spotify (ผ่าน Backend)
   Future<void> fetchSongsFromSpotify(String query) async {
-    if (query.isEmpty) return;
+    // 1. ถ้าช่องค้นหาว่าง ให้รีเซ็ตกลับไปแสดงเพลงทั้งหมดจาก DB
+    if (query.trim().isEmpty) {
+      setState(() {
+        spotifySongs = []; // ล้างผลการค้นหาจาก Spotify
+      });
+      await loadSongsFromDb(); // ดึงเพลงทั้งหมดกลับมาโชว์ใน Tab All/Custom
+      return;
+    }
+
     setState(() => isLoading = true);
+
     try {
-      // หมายเหตุ: อย่าลืมส่ง token ไปด้วยถ้า backend ของคุณต้องการ
+      // 2. เรียก API ค้นหาแบบ Hybrid (DB + Spotify)
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/spotify/search?q=$query'),
+        Uri.parse('$baseUrl/songs/search?q=$query'),
       );
       if (response.statusCode == 200) {
+        final List<dynamic> searchResults = json.decode(
+          response.body,
+        )['results'];
+
         setState(() {
-          spotifySongs = json.decode(response.body)['results'];
+          // กรองเพลงที่ตรงตามคำค้นหามาแสดงผล
+          dbSongs = searchResults.where((s) => s['source'] == 'db').toList();
+          spotifySongs = searchResults
+              .where((s) => s['source'] == 'spotify')
+              .toList();
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() => isLoading = false);
-      debugPrint("Error searching Spotify: $e");
+      debugPrint("Search error: $e");
     }
   }
 
   void _togglePreview(String? url) async {
     if (url == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No preview available")));
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("No preview available")));
@@ -90,6 +110,7 @@ class _InventoryPageState extends State<InventoryPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          automaticallyImplyLeading: false,
           title: Container(
             height: 40,
             decoration: BoxDecoration(
@@ -101,12 +122,12 @@ class _InventoryPageState extends State<InventoryPage> {
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 hintText: "Search music...",
+                hintText: "Search music...",
                 hintStyle: TextStyle(color: Colors.white38),
                 prefixIcon: Icon(Icons.search, color: Colors.white38),
                 border: InputBorder.none,
               ),
-              onSubmitted: (value) =>
-                  fetchSongsFromSpotify(value), // ค้นหาจาก Spotify
+              onSubmitted: (value) => fetchSongsFromSpotify(value),
             ),
           ),
           bottom: PreferredSize(
@@ -115,22 +136,16 @@ class _InventoryPageState extends State<InventoryPage> {
               alignment: Alignment.centerLeft,
               child: TabBar(
                 isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 dividerColor: Colors.transparent,
-                indicatorColor: Colors
-                    .green, // เปลี่ยนเป็นสีเขียวเพื่อให้ดูเป็นธีม Spotify มากขึ้น
+                indicatorColor: Colors.green,
                 indicatorWeight: 3,
-                indicatorSize: TabBarIndicatorSize.label,
                 labelColor: Colors.white,
-                unselectedLabelColor: Colors
-                    .white38, // ปรับให้จางลงเล็กน้อยเพื่อให้ตัวที่เลือกดูเด่นขึ้น
+                unselectedLabelColor: Colors.white38,
                 labelStyle: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
                 ),
-                labelPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                ), // เพิ่มระยะห่างระหว่าง Tab
                 tabs: const [
                   Tab(text: "All"),
                   Tab(text: "Spotify"),
@@ -146,20 +161,17 @@ class _InventoryPageState extends State<InventoryPage> {
               )
             : TabBarView(
                 children: [
-                  // 1. Tab All: แสดงเพลงทั้งหมดที่มีใน dbSongs
-                  _buildMusicGrid(dbSongs, "All"),
-
-                  // 2. Tab Spotify: กรองจาก dbSongs เฉพาะเพลงที่มาจาก Spotify
-                  _buildMusicGrid(
-                    dbSongs.where((s) => s['is_custom'] == false).toList(),
-                    "Spotify",
-                  ),
-
-                  // 3. Tab Custom: กรองจาก dbSongs เฉพาะเพลงที่เพิ่มเอง
+                  _buildMusicGrid(dbSongs, "All"), // เพลงทั้งหมดใน DB
+                  _buildMusicGrid([
+                    ...spotifySongs, // ผลการค้นหาใหม่จาก API
+                    ...dbSongs
+                        .where((s) => s['is_custom'] == false)
+                        .toList(), // เพลง Spotify ใน DB
+                  ], "Spotify"), // ผลการค้นหาใหม่
                   _buildMusicGrid(
                     dbSongs.where((s) => s['is_custom'] == true).toList(),
                     "Custom",
-                  ),
+                  ), // เพลงที่เพิ่มเอง
                 ],
               ),
       ),
@@ -167,12 +179,18 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Widget _buildMusicGrid(List<dynamic> displaySongs, String type) {
-    // กำหนดจำนวนรายการใน Grid (ถ้าเป็น All หรือ Custom ให้ +1 สำหรับปุ่ม Add)
     bool showAddButton = (type == "All" || type == "Custom");
     int itemCount = showAddButton
         ? displaySongs.length + 1
         : displaySongs.length;
 
+    if (displaySongs.isEmpty && !showAddButton) {
+      return Center(
+        child: Text(
+          "No songs found in $type",
+          style: const TextStyle(color: Colors.white54),
+        ),
+      );
     if (displaySongs.isEmpty && !showAddButton) {
       return Center(
         child: Text(
@@ -191,13 +209,10 @@ class _InventoryPageState extends State<InventoryPage> {
         mainAxisSpacing: 15,
       ),
       itemCount: itemCount,
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        // กรณีแสดงปุ่ม Add Custom Music ในช่องแรก
-        if (showAddButton && index == 0) {
-          return _buildAddCustomMusicCard();
-        }
+        if (showAddButton && index == 0) return _buildAddCustomMusicCard();
 
-        // คำนวณ Index จริงของเพลง (ถ้ามีปุ่ม Add ต้อง -1)
         final songIndex = showAddButton ? index - 1 : index;
         final song = displaySongs[songIndex];
 
@@ -209,14 +224,13 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  // Widget สำหรับปุ่ม Add Custom Music
   Widget _buildAddCustomMusicCard() {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const CreatemusicPage()),
-        ).then((_) => loadSongsFromDb());
+        ).then((_) => loadSongsFromDb()); // Refresh เมื่อกลับมาจากหน้าเพิ่มเพลง
       },
       child: Container(
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
@@ -248,21 +262,17 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Widget _buildMusicCard(Map<String, dynamic> song) {
-    const String baseUrl = "http://10.0.2.2:8000";
-
     String rawImageUrl = song['image'] ?? "";
     String finalImageUrl = "";
 
     if (rawImageUrl.startsWith("http")) {
-      // กรณีเพลงจาก Spotify
       finalImageUrl = rawImageUrl;
     } else if (rawImageUrl.startsWith("/static")) {
-      // กรณีเพลง Custom ที่มี path เริ่มด้วย /static
       finalImageUrl = "$baseUrl$rawImageUrl";
     } else if (rawImageUrl.isNotEmpty) {
-      // กันเหนียว: ถ้าใน DB เก็บแค่ static/... (ไม่มี / ข้างหน้า)
       finalImageUrl = "$baseUrl/$rawImageUrl";
     }
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
@@ -276,10 +286,22 @@ class _InventoryPageState extends State<InventoryPage> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
               ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               child: Image.network(
-                finalImageUrl.isNotEmpty ? finalImageUrl : "https://via.placeholder.com/150",
+                finalImageUrl.isNotEmpty
+                    ? finalImageUrl
+                    : "https://via.placeholder.com/150",
                 fit: BoxFit.cover,
                 width: double.infinity,
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(
+                    Icons.music_note,
+                    size: 50,
+                    color: Colors.white24,
+                  ),
+                ),
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(
                     Icons.music_note,
@@ -294,9 +316,14 @@ class _InventoryPageState extends State<InventoryPage> {
             padding: const EdgeInsets.all(8.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   song['name'] ?? "Unknown",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -309,6 +336,14 @@ class _InventoryPageState extends State<InventoryPage> {
                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
                 if (song['preview_url'] != null)
+                  const Align(
+                    alignment: Alignment.bottomRight,
+                    child: Icon(
+                      Icons.play_circle_fill,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                  ),
                   const Align(
                     alignment: Alignment.bottomRight,
                     child: Icon(

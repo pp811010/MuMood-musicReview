@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:frontend/screens/admin/admin_app.dart';
 import 'package:frontend/screens/app.dart';
+import 'package:frontend/screens/user/home.dart';
 import 'package:http/http.dart' as http;
 import 'register.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -13,13 +16,31 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-  // Controllers
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // State for Checkbox
   bool _rememberMe = false;
   bool _isLoading = false;
+
+  @override
+  void initState(){
+    super.initState();
+    _loadRememberMe();
+  }
+
+  Future<void> _loadRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool rememberMe = prefs.getBool('remember_me') ?? false;
+
+    if (rememberMe) {
+      setState(() {
+        _rememberMe = true;
+        _emailController.text = prefs.getString('saved_email') ?? '';
+        _passwordController.text = prefs.getString('saved_password') ?? '';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -35,6 +56,18 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _login() async {
+
+
+    if(_emailController.text == "admin555" && _passwordController.text == "admin12345678"){
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => AdminApp()),
+          (route) => false,
+        );
+        setState(() => _isLoading = false);
+        return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -56,10 +89,19 @@ class _LoginState extends State<Login> {
         String token = data['access_token'];
         print("Sign in Success Token: $token");
 
-        // Handle 'Remember Me' logic here if needed (e.g., save to shared_preferences)
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('access_token', token);
+
         if (_rememberMe) {
-          print("Remember Me is checked");
+          await prefs.setBool('remember_me', true);
+          await prefs.setString('saved_email', _emailController.text);
+          await prefs.setString('saved_password', _passwordController.text);
+        } else {
+          await prefs.remove('remember_me');
+          await prefs.remove('saved_email');
+          await prefs.remove('saved_password');
         }
+
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -67,7 +109,12 @@ class _LoginState extends State<Login> {
             backgroundColor: Colors.green,
           ),
         );
-        // TODO: Navigate to Home Page
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => App()),
+          (route) => false,
+        );
       } else {
         print("Login failed: ${response.body}");
         _showErrorSnackBar("Email or Password does not Correct!!!");
@@ -90,7 +137,6 @@ class _LoginState extends State<Login> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Top Navigation Row
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -109,7 +155,7 @@ class _LoginState extends State<Login> {
                         );
                       },
                       child: const Text(
-                        'Register',
+                        'Sign Up',
                         style: TextStyle(fontSize: 16, color: Colors.white54),
                       ),
                     ),
@@ -254,17 +300,7 @@ class _LoginState extends State<Login> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => App(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
+                        onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromRGBO(30, 223, 99, 1),
                           padding: const EdgeInsets.symmetric(vertical: 15),
