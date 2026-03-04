@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/Login.dart';
-// import 'screens/admin/Inventory_page.dart';
+import 'package:frontend/screens/admin/admin_app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +17,12 @@ class MyApp extends StatelessWidget {
       title: 'MuMood',
       theme: ThemeData(),
       home: const Login(),
+
+      // เผื่อใช้
+      routes: {
+        '/login': (context) => const Login(),
+        '/admin' : (context) => const AdminApp(),
+      },
     );
   }
 }

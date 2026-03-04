@@ -108,6 +108,7 @@ class _InventoryPageState extends State<InventoryPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          automaticallyImplyLeading: false,
           title: Container(
             height: 40,
             decoration: BoxDecoration(

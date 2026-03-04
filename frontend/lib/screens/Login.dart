@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:frontend/screens/admin/Inventory_page.dart';
+import 'package:frontend/screens/admin/admin_app.dart';
 import 'package:frontend/screens/app.dart';
 import 'package:frontend/screens/user/home.dart';
 import 'package:http/http.dart' as http;
@@ -61,7 +61,7 @@ class _LoginState extends State<Login> {
     if(_emailController.text == "admin555" && _passwordController.text == "admin12345678"){
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => InventoryPage()),
+          MaterialPageRoute(builder: (context) => AdminApp()),
           (route) => false,
         );
         setState(() => _isLoading = false);
