@@ -17,7 +17,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     favorite_genres = Column(String)
     bio = Column(String)
-    created_at = Column(DateTime, default=get_now_utc)
+    created_at = Column(DateTime(timezone=True), default=get_now_utc)
     is_active = Column(Boolean, default=True)
 
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:frontend/screens/app.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'register.dart';
 
 class Login extends StatefulWidget {
@@ -13,11 +14,9 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-  // Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // State for Checkbox
   bool _rememberMe = false;
   bool _isLoading = false;
 
@@ -35,9 +34,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _login() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final url = Uri.parse('http://10.0.2.2:8000/users/login/');
 
@@ -54,20 +51,27 @@ class _LoginState extends State<Login> {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         String token = data['access_token'];
-        print("Sign in Success Token: $token");
 
-        // Handle 'Remember Me' logic here if needed (e.g., save to shared_preferences)
-        if (_rememberMe) {
-          print("Remember Me is checked");
-        }
+        // Save token ลง SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('access_token', token);
 
+        print("Sign in Success, Token saved: $token");
+
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Log in Success!"),
             backgroundColor: Colors.green,
           ),
         );
-        // TODO: Navigate to Home Page
+
+        // Navigate ไปหน้า App หลัง save token เสร็จ
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => App()),
+          (route) => false,
+        );
       } else {
         print("Login failed: ${response.body}");
         _showErrorSnackBar("Email or Password does not Correct!!!");
@@ -254,17 +258,7 @@ class _LoginState extends State<Login> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => App(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
+                        onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromRGBO(30, 223, 99, 1),
                           padding: const EdgeInsets.symmetric(vertical: 15),
