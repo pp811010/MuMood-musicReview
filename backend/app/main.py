@@ -5,7 +5,9 @@ from app.routes import spotify
 from app.routes import mood_color
 from app.routes import review
 from app.routes import emotion
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -23,8 +25,7 @@ app.include_router(song.router)
 app.include_router(spotify.router)
 app.include_router(review.router)
 app.include_router(favorite.router)
-app.include_router(emotion.router)
-app.include_router(mood_color.router)
+
 
 @app.get("/")
 def root():

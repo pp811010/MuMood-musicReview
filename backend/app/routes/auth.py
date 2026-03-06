@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+from typing import Optional
 from app.core.security import *
 from app.schemas.user import *
 from app.core.security import *
@@ -56,6 +57,16 @@ async def login_for_access_token(db: SessionDep, form_data: OAuth2PasswordReques
         "refresh_token": create_refresh_token({"sub": user.email}),  # ✅ เพิ่ม
         "token_type": "bearer"
     }
+
+
+@router.post("/logout")
+async def logout(authorization: Optional[str] = Header(None)): # ใช้ Header(None) ให้ถูกต้อง
+    # ถ้าไม่มี Token ส่งมา ก็แค่ข้ามไป ไม่ต้อง raise 400
+    if authorization:
+        print(f"Logging out for token: {authorization}")
+        # ในอนาคตค่อยเพิ่ม logic เก็บลง Blacklist ตรงนี้
+    
+    return {"status": "success", "message": "Successfully logged out"}
 
 @router.get("/profile", response_model=UserResponse)
 async def get_profile(db: SessionDep, current_user: User =  Depends(get_current_active_user)):

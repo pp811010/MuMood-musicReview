@@ -12,48 +12,62 @@ from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/songs", tags=["Songs"])
 
+BASE_URL = "http://10.0.2.2:8000"
+
 @router.get("/search")
 async def search_songs(q: str, db: SessionDep):
     token = await get_spotify_token()
 
     stmt = select(Song).where(
-        or_(Song.song_name.ilike(f"%{q}%"), Song.artist_name.ilike(f"%{q}%"))
-    ).limit(10)
+        or_(
+            Song.song_name.ilike(f"%{q}%"), 
+            Song.artist_name.ilike(f"%{q}%")
+        )
+    ).limit(15)
     result = await db.execute(stmt)
     db_songs = result.scalars().all()
     
-    db_song_map = {s.spotify_id: s for s in db_songs if s.spotify_id}
+    # สร้าง Map เพื่อเช็คเพลงซ้ำจาก Spotify ID
+    db_spotify_ids = {s.spotify_id for s in db_songs if s.spotify_id}
 
-    db_results = [{
-        "id": str(s.id),
-        "name": s.song_name,
-        "artist": s.artist_name,
-        "image": s.song_cover_url,
-        "source": "db"
-    } for s in db_songs]
+    results = []
+    for s in db_songs:
+        img = s.song_cover_url
+        if img and img.startswith("/static"):
+            img = f"{BASE_URL}{img}"
+        results.append({
+            "id": str(s.id),
+            "name": s.song_name,
+            "artist": s.artist_name,
+            "image": img,
+            "source": "db",
+            "is_custom": s.is_custom_added
+        })
 
+    # ค้นหาใน Spotify
     async with httpx.AsyncClient() as client:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = await client.get(
+        resp = await client.get(
             "https://api.spotify.com/v1/search",
-            headers=headers,
+            headers={"Authorization": f"Bearer {token}"},
             params={"q": q, "type": "track", "limit": 10}
         )
-        spotify_items = response.json().get("tracks", {}).get("items", [])
+        spotify_items = resp.json().get("tracks", {}).get("items", [])
 
+    # รวมผลลัพธ์ (Merge & Deduplicate)
     final_results = db_results.copy()
     for item in spotify_items:
-        if item["id"] in db_song_map:
-            continue
-        final_results.append({
+        if item["id"] in db_spotify_ids:
+            continue # ข้ามถ้ามีในคลังเราแล้ว
+        results.append({
             "id": item["id"],
             "name": item["name"],
             "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
             "image": item["album"]["images"][0]["url"] if item.get("album") else None,
-            "source": "spotify"
+            "source": "spotify",
+            "is_custom": False
         })
 
-    return {"query": q, "results": final_results}
+    return {"results": results}
 
 
 

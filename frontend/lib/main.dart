@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/screens/Login.dart';
 import 'package:frontend/screens/app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/screens/admin/admin_app.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
