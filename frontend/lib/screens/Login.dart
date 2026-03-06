@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:frontend/screens/admin/Inventory_page.dart';
 import 'package:frontend/screens/app.dart';
-import 'package:frontend/screens/user/home.dart';
 import 'package:http/http.dart' as http;
 import 'register.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +15,6 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -24,7 +22,7 @@ class _LoginState extends State<Login> {
   bool _isLoading = false;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _loadRememberMe();
   }
@@ -56,16 +54,15 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _login() async {
-
-
-    if(_emailController.text == "admin555" && _passwordController.text == "admin12345678"){
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => InventoryPage()),
-          (route) => false,
-        );
-        setState(() => _isLoading = false);
-        return;
+    if (_emailController.text == "admin555" &&
+        _passwordController.text == "admin12345678") {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => InventoryPage()),
+        (route) => false,
+      );
+      setState(() => _isLoading = false);
+      return;
     }
 
     setState(() {
@@ -102,6 +99,17 @@ class _LoginState extends State<Login> {
           await prefs.remove('saved_password');
         }
 
+        final profileResponse = await http.get(
+          Uri.parse('http://10.0.2.2:8000/users/profile'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+
+        if (profileResponse.statusCode == 200) {
+          final profile = jsonDecode(profileResponse.body);
+          await prefs.setInt('user_id', profile['id']);
+          await prefs.setString('username', profile['username']);
+          await prefs.setString('email', profile['email']);
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -281,15 +289,6 @@ class _LoginState extends State<Login> {
                               style: TextStyle(color: Colors.white),
                             ),
                           ],
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            // TODO: Handle Forgot Password
-                          },
-                          child: const Text(
-                            'Forgot Password?',
-                            style: TextStyle(color: Colors.white54),
-                          ),
                         ),
                       ],
                     ),

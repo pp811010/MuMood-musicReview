@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/Login.dart';
-// import 'screens/admin/Inventory_page.dart';
+import 'package:frontend/screens/app.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
@@ -16,7 +19,48 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MuMood',
       theme: ThemeData(),
-      home: const Login(),
+      navigatorKey: navigatorKey, 
+      home: const SplashDecider(), // ✅ เช็ค token ก่อนเข้าแอป
+    );
+  }
+}
+
+
+class SplashDecider extends StatefulWidget {
+  const SplashDecider({super.key});
+
+  @override
+  State<SplashDecider> createState() => _SplashDeciderState();
+}
+
+class _SplashDeciderState extends State<SplashDecider> {
+  @override
+  void initState() {
+    super.initState();
+    _checkToken();
+  }
+
+  Future<void> _checkToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => token != null ? App() : const Login(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color.fromRGBO(36, 36, 35, 1),
+      body: Center(
+        child: CircularProgressIndicator(color: Color(0xFF1DB954)),
+      ),
     );
   }
 }

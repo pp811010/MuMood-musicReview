@@ -9,14 +9,14 @@ class HistoryPage extends StatelessWidget {
     // Mock Data
     final List<Music> historySongs = [
       Music(
-        id: 1,
+        id: '1',
         title: "Loser",
         artist: "UrboyTJ",
         genre: "Pop",
         image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
       ),
       Music(
-        id: 2,
+        id: '2',
         title: "Loser",
         artist: "UrboyTJ",
         genre: "R&B",

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
 from app.database import SessionDep
-from app.schemas.review import ReviewRequest, ReviewUpdate
+from app.schemas.review import ReviewRequest, ReviewResponse, ReviewUpdate
 from app.models import Review, Song, User
 from app.core.security import get_current_active_user
 from app.services.spotify import fetch_spotify_track 
@@ -11,13 +11,48 @@ from app.services.spotify import fetch_spotify_track
 router = APIRouter(prefix="/review", tags=["Review"])
 
 
-@router.post('/review')
+from sqlalchemy import select, and_
+
+@router.get('/me')
+async def get_review_me(
+    db: SessionDep, 
+    song_identifier: str, 
+    current_user: User = Depends(get_current_active_user)
+):
+    if song_identifier.isdigit():
+        stmt_song = select(Song).where(Song.id == int(song_identifier))
+    else:
+        stmt_song = select(Song).where(Song.spotify_id == song_identifier)
+        
+    result_song = await db.execute(stmt_song)
+    song = result_song.scalar_one_or_none()
+
+    if not song:
+        raise HTTPException(status_code=404, detail="This song not have reviewed")
+    
+
+    stmt_review = select(Review).where(
+        and_(
+            Review.user_id == current_user.id,
+            Review.song_id == song.id
+        )
+    )
+    result_review = await db.execute(stmt_review)
+    review = result_review.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found for this user and song")
+
+    return review
+
+
+@router.post('/')
 async def create_review(
     db: SessionDep,
     review: ReviewRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    # 1. จัดการเรื่อง Song (เหมือนเดิม)
+    print('id', review.song_id_reference)
     target_song_id = None
     if review.source == "spotify":
         stmt = select(Song).where(Song.spotify_id == review.song_id_reference)
@@ -39,7 +74,6 @@ async def create_review(
     else:
         target_song_id = int(review.song_id_reference)
 
-    # 2. เพิ่ม Logic เช็คว่ารีวิวไปหรือยัง!
     existing_review = await db.scalar(
         select(Review).where(
             Review.user_id == current_user.id,
@@ -53,7 +87,6 @@ async def create_review(
             detail="คุณเคยรีวิวเพลงนี้ไปแล้ว หากต้องการแก้ไขให้ใช้ PUT แทนครับ"
         )
 
-    # 3. สร้าง Review ใหม่
     new_review = Review(
         user_id=current_user.id,
         song_id=target_song_id,
@@ -68,7 +101,7 @@ async def create_review(
     await db.commit()
     await db.refresh(new_review)
     
-    return {"status": "create review success", "review_id": new_review.id}
+    return {"status": "create review success", "review": new_review}
 
 
 @router.get("/history/me")
@@ -83,7 +116,6 @@ async def get_my_reviews(
 
 
 async def resolve_song_id(db: SessionDep, identifier: str) -> int:
-    """ช่วยแปลง identifier (int หรือ spotify_id) เป็น DB song.id"""
     if identifier.isdigit():
         return int(identifier)
     

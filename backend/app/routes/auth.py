@@ -6,10 +6,14 @@ from app.models import *
 from app.database import SessionDep
 from fastapi.security import OAuth2PasswordRequestForm
 
+
 router = APIRouter(
     prefix="/users",
-    tags=["users"]
+    tags=["Users"]
 )
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 @router.post("/register/", response_model=UserResponse)
 async def register_user(user: UserCreate, db: SessionDep):
@@ -32,23 +36,26 @@ async def register_user(user: UserCreate, db: SessionDep):
     await db.refresh(new_user)
     return new_user
 
-@router.post("/login/", response_model=Token)
-async def login_for_access_token(db: SessionDep,form_data: OAuth2PasswordRequestForm = Depends()):
-    user_query = select(User).where(User.email == form_data.username)
-    result = await db.execute(user_query)
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    if not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    
 
-    access_token_expires = timedelta(minutes= 30)
-    access_token = create_acces_token(
-        data={"sub": user.email},
-        expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+@router.post("/refresh/")
+async def refresh_access_token(body: RefreshRequest):
+    token_data = verify_token(body.refresh_token, expected_type="refresh")
+    new_access_token = create_access_token({"sub": token_data.email})
+    return {"access_token": new_access_token, "token_type": "bearer"}
+
+@router.post("/login/", response_model=Token)
+async def login_for_access_token(db: SessionDep, form_data: OAuth2PasswordRequestForm = Depends()):
+    result = await db.execute(select(User).where(User.email == form_data.username))
+    user = result.scalars().first()
+    
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    return {
+        "access_token": create_access_token({"sub": user.email}),
+        "refresh_token": create_refresh_token({"sub": user.email}),  # ✅ เพิ่ม
+        "token_type": "bearer"
+    }
 
 @router.get("/profile", response_model=UserResponse)
 async def get_profile(db: SessionDep, current_user: User =  Depends(get_current_active_user)):
@@ -90,16 +97,15 @@ async def update_user(user_id: int, user: UserCreate, db: SessionDep, current_us
     return db_user
 
 @router.delete("/{user_id}")
-async def delete_user(user_id:int, db: SessionDep, current_user: User = Depends(get_current_active_user)):
-    db_user = select(User).where(User.id == user_id)
-    result = await db.execute(db_user)
+async def delete_user(user_id: int, db: SessionDep, current_user: User = Depends(get_current_active_user)):
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
-    if( user is None):
-        raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
     
-    if( current_user.id == user_id):
-        raise HTTPException(status_code=404, detail="You can not delete yourself")
+    if user is None:
+        raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
+    if current_user.id == user_id:
+        raise HTTPException(status_code=403, detail="You cannot delete yourself")
     
     await db.delete(user)
-    db.commit()
-    return {"massage": "User deleted"}
+    await db.commit() 
+    return {"message": "User deleted"}  

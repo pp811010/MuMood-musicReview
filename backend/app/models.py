@@ -17,7 +17,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     favorite_genres = Column(String)
     bio = Column(String)
-    created_at = Column(DateTime, default=get_now_utc)
+    created_at = Column(DateTime(timezone=True), default=get_now_utc)
     is_active = Column(Boolean, default=True)
 
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
@@ -47,7 +47,6 @@ class Emotion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    icon_url = Column(String)
     reviews = relationship("Review", back_populates="emotion")
 
 class MoodColor(Base):
@@ -62,9 +61,9 @@ class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    song_id = Column(Integer, ForeignKey("songs.id"), nullable=False)
-    emotion_id = Column(Integer, ForeignKey("emotions.id"), nullable=False)
-    mood_color_id = Column(Integer, ForeignKey("mood_colors.id"), nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    emotion_id = Column(Integer, ForeignKey("emotions.id"), nullable=True)
+    mood_color_id = Column(Integer, ForeignKey("mood_colors.id"), nullable=True)
     
     beat_score = Column(Float)
     lyric_score = Column(Float)
@@ -84,7 +83,7 @@ class Favorite(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    song_id = Column(Integer, ForeignKey("songs.id"), nullable=False)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     created_at =  Column(DateTime(timezone=True), default=get_now_utc)
 
     user = relationship("User", back_populates="favorites")

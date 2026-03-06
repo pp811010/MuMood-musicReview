@@ -10,7 +10,7 @@ from app.services.spotify import fetch_spotify_track
 
 router = APIRouter(
     prefix="/favorites",
-    tags=["favorites"]
+    tags=["Favorites"]
 )
 
 class FavoriteRequest(BaseModel):
@@ -22,8 +22,7 @@ class SongResponse(BaseModel):
     id: int
     song_name: str
     artist_name: str
-    song_cover_url: str
-    
+    song_cover_url: str    
     class Config:
         orm_mode = True
 

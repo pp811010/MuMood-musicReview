@@ -12,14 +12,14 @@ class _FavoritePageState extends State<FavoritePage> {
   // Mock Data
   final List<Music> favoriteSongs = [
     Music(
-      id: 1,
+      id: '1',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "Pop",
       image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
     ),
     Music(
-      id: 2,
+      id: '2',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "R&B",
@@ -27,14 +27,14 @@ class _FavoritePageState extends State<FavoritePage> {
           "https://upload.wikimedia.org/wikipedia/en/5/52/Daniel_Caesar_Get_You.jpg",
     ),
     Music(
-      id: 3,
+      id: '3',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "Indie",
       image: "https://i.ytimg.com/vi/UGB_Bsm5Unk/maxresdefault.jpg",
     ),
     Music(
-      id: 4,
+      id: '4',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "R&B",
@@ -42,14 +42,14 @@ class _FavoritePageState extends State<FavoritePage> {
           "https://upload.wikimedia.org/wikipedia/en/2/2a/Giveon_-_Heartbreak_Anniversary.png",
     ),
     Music(
-      id: 5,
+      id: '5',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "Pop",
       image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
     ),
     Music(
-      id: 6,
+      id: '6',
       title: "Loser",
       artist: "UrboyTJ",
       genre: "R&B",

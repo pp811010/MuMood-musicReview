@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'package:frontend/core/api_client.dart'; // ✅ import ApiClient
+import 'package:frontend/widgets/song.card.dart';
+import 'package:frontend/widgets/song_card_shimmer.dart';
+import 'package:frontend/widgets/trending_list.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/models/music.dart';
-import 'package:frontend/screens/music_detail.dart';
+import 'dart:async';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,65 +16,120 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final _searchController = TextEditingController();
-  String _selectedGenre = 'All';
+  Timer? _debounce;
 
-  final List<Music> allMusic = [
-     Music(
-      id: 1,
-      title: "ew",
-      artist: "joji",
-      genre: "Indie",
-      image: "https://i.ytimg.com/vi/UGB_Bsm5Unk/maxresdefault.jpg",
-    ),
-   
-    Music(
-      id: 2,
-      title: "Got you",
-      artist: "daniel caesar",
-      genre: "R&B",
-      image:
-          "https://upload.wikimedia.org/wikipedia/en/5/52/Daniel_Caesar_Get_You.jpg",
-    ),
-    Music(
-      id: 3,
-      title: "heartbreak",
-      artist: "GIVĒON",
-      genre: "Jass",
-      image:
-          "https://upload.wikimedia.org/wikipedia/en/2/2a/Giveon_-_Heartbreak_Anniversary.png",
-    ),
-     Music(
-      id: 4,
-      title: "Like I Want You",
-      artist: "GIVĒON",
-      genre: "Pop",
-      image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
-    ),
-    Music(
-      id: 5,
-      title: "heartbreak",
-      artist: "GIVĒON",
-      genre: "Pop",
-      image:
-          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRM1s5M9isHkz2p1NDD-oirB2SVBmUlfrfkAg&s",
-    ),
-    Music(
-      id: 6,
-      title: "count me out",
-      artist: "kendrick lamar ",
-      genre: "Hip Hop",
-      image:
-          "https://images.genius.com/e114b4b3a183aa12358c68f619dddb7e.1000x563x1.jpg",
-    ),
-  ];
+  String _selectedGenre = 'All';
+  List<Map<String, String>> _trendingSongs = [];
+  bool _isLoadingTrending = false;
+
+  List<Music> _genreSongs = [];
+  bool _isLoadingGenre = false;
+
+  List<Music> _searchResults = [];
+  bool _isLoadingSearch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTopchart();
+    _fetchSongsByGenre(_selectedGenre);
+  }
+
+  Future<void> _fetchTopchart() async {
+    setState(() => _isLoadingTrending = true);
+    try {
+      final response = await ApiClient.get('/spotify/top-charts');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final List<dynamic> thCharts = data['charts']['TH'] ?? [];
+        setState(() {
+          _trendingSongs = thCharts
+              .map<Map<String, String>>(
+                (item) => {
+                  'title': item['song_name']?.toString() ?? '',
+                  'artist': item['artist_name']?.toString() ?? '',
+                  'image': item['song_cover_url']?.toString() ?? '',
+                },
+              )
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching top chart: $e');
+    } finally {
+      setState(() => _isLoadingTrending = false);
+    }
+  }
+
+  Future<void> _searchSongs(String query) async {
+    if (query.isEmpty) return;
+    setState(() => _isLoadingSearch = true);
+    try {
+      final response = await ApiClient.get('/songs/search?q=$query');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final List<dynamic> results = data['results'] ?? [];
+        setState(() {
+          _searchResults = results
+              .map<Music>(
+                (item) => Music(
+                  id: item['id'],
+                  title: item['name'] ?? '',
+                  artist: item['artist'] ?? '',
+                  genre: '',
+                  image: item['image'] ?? '',
+                ),
+              )
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error searching: $e');
+    } finally {
+      setState(() => _isLoadingSearch = false);
+    }
+  }
+
+  Future<void> _fetchSongsByGenre(String genre) async {
+    setState(() => _isLoadingGenre = true);
+    try {
+      final response = await ApiClient.get(
+        '/spotify/songs-by-genre?genre=${genre.toLowerCase()}&limit=10',
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final List<dynamic> songs = data['songs'] ?? [];
+        setState(() {
+          _genreSongs = songs
+              .map<Music>(
+                (item) => Music(
+                  id: item['id'],
+                  title: item['song_name'] ?? '',
+                  artist: item['artist_name'] ?? '',
+                  genre: genre,
+                  image: item['song_cover_url'] ?? '',
+                ),
+              )
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching songs by genre: $e');
+    } finally {
+      setState(() => _isLoadingGenre = false);
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  @override
   Widget build(BuildContext context) {
     bool isSearching = _searchController.text.isNotEmpty;
     return Scaffold(
@@ -80,12 +140,68 @@ class _HomeState extends State<Home> {
           child: Column(
             children: [
               _buildHeader(),
-              _buildCategories(),
+              if (!isSearching) _buildCategories(),
               if (!isSearching) ...[
-                _buildSectionTitle("TRENDING NOW"),
-                _buildTrendingList(),
+                _buildSectionTitle("TRENDING 2025 IN SPOFITY (TH)"),
+                TrendingList(
+                  trendingSongs: _trendingSongs,
+                  isLoading: _isLoadingTrending,
+                ),
               ],
-              if (isSearching) ...[SizedBox(height: 20)],
+              if (!isSearching)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: 20,
+                    left: 22,
+                    right: 22,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$_selectedGenre Tracks',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.bubble_chart_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (isSearching) ...[
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: 20,
+                    left: 10,
+                    right: 10,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Results for "${_searchController.text}"',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Icon(Icons.search, color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ],
               _buildMusicGrid(),
             ],
           ),
@@ -103,7 +219,7 @@ class _HomeState extends State<Home> {
           decoration: const BoxDecoration(
             image: DecorationImage(
               image: NetworkImage(
-                "https://www.investopedia.com/thmb/QWfQNFAKm7YY7D17s30PR_WjhRU=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/GettyImages-2196837244-cd59229199614d8da69e839d12e30909.jpg",
+                "https://cached.imagescaler.hbpl.co.uk/resize/scaleWidth/1272/cached.offlinehbpl.hbpl.co.uk/news/ORP/badbunny-g-rm-prwus-2236505269.jpg",
               ),
               fit: BoxFit.fill,
             ),
@@ -125,7 +241,6 @@ class _HomeState extends State<Home> {
             child: _buildSearchBar(_searchController),
           ),
         ),
-       
       ],
     );
   }
@@ -136,6 +251,14 @@ class _HomeState extends State<Home> {
       style: const TextStyle(color: Colors.white),
       onChanged: (value) {
         setState(() {});
+        if (_debounce?.isActive ?? false) _debounce!.cancel();
+        _debounce = Timer(const Duration(milliseconds: 1000), () {
+          if (value.isNotEmpty) {
+            _searchSongs(value);
+          } else {
+            setState(() => _searchResults = []);
+          }
+        });
       },
       decoration: InputDecoration(
         hintText: 'Search your music interested',
@@ -194,9 +317,8 @@ class _HomeState extends State<Home> {
             side: const BorderSide(color: Colors.transparent),
           ),
           onSelected: (bool selected) {
-            setState(() {
-              _selectedGenre = genre;
-            });
+            setState(() => _selectedGenre = genre);
+            _fetchSongsByGenre(genre);
           },
         );
       }).toList(),
@@ -232,124 +354,18 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildTrendingList() {
-    final List<Map<String, String>> trendingSongs = [
-      {
-        'title': 'White Ferrari',
-        'artist': 'frank ocean',
-        'image': 'https://i.ytimg.com/vi/Dlz_XHeUUis/maxresdefault.jpg',
-      },
-      {
-        'title': 'THE LOSER',
-        'artist': 'URBOYTJ',
-        'image':
-            'https://i.scdn.co/image/ab67616d0000b2737aede4855f6d0d738012e2e5',
-      },
-      {
-        'title': 'SunFlowers',
-        'artist': 'Post Malon',
-        'image':
-            'https://i.scdn.co/image/ab67616d0000b273e2e352d89826aef6dbd5ff8f',
-      },
-      {
-        'title': 'กลัวว่าฉันจะ...',
-        'artist': 'ศิลปิน C',
-        'image':
-            'https://i.scdn.co/image/ab67616d0000b273e2e352d89826aef6dbd5ff8f',
-      },
-    ];
-    return Padding(
-      padding: const EdgeInsets.only(left: 10),
-      child: SizedBox(
-        height: 220,
-
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: trendingSongs.length,
-          itemBuilder: (context, index) {
-            final song = trendingSongs[index];
-            return Container(
-              width: 150,
-              margin: const EdgeInsets.only(right: 15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: Image.network(
-                      song['image']!,
-                      height: 150,
-                      width: 150,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    song['title']!,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    song['artist']!,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   Widget _buildMusicGrid() {
-    final searchText = _searchController.text.toLowerCase();
+    final isSearching = _searchController.text.isNotEmpty;
 
-    final filteredMusic = allMusic.where((music) {
-      bool matchesGenre =
-          (_selectedGenre == 'All' || music.genre == _selectedGenre);
+    if (_isLoadingSearch || _isLoadingGenre) {
+      return const SongCardShimmer();
+    }
 
-      bool matchesSearch =
-          searchText.isEmpty ||
-          music.title.toLowerCase().contains(searchText) ||
-          music.artist.toLowerCase().contains(searchText);
+    final displayMusic = isSearching ? _searchResults : _genreSongs;
 
-      return matchesGenre && matchesSearch;
-    }).toList();
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 20, left: 22, right: 22),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '$_selectedGenre | ${filteredMusic.length} TRACKS',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 17,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Icon(
-                  Icons.bubble_chart_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (filteredMusic.isEmpty)
+        if (displayMusic.isEmpty)
           _buildEmptyState()
         else
           GridView.builder(
@@ -362,53 +378,11 @@ class _HomeState extends State<Home> {
               mainAxisSpacing: 20,
               childAspectRatio: 0.75,
             ),
-            itemCount: filteredMusic.length,
+            itemCount: displayMusic.length,
             itemBuilder: (context, index) =>
-                _buildSongCard(filteredMusic[index]),
+                SongCard(music: displayMusic[index]),
           ),
       ],
-    );
-  }
-
-  Widget _buildSongCard(Music music, {double? width}) {
-    return SizedBox(
-      width: width,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute<void>(builder: (context) => MusicDetail(music: music,)),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
-                child: Image.network(
-                  music.image,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              music.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              music.artist,
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -422,17 +396,12 @@ class _HomeState extends State<Home> {
           Icon(Icons.music_off_outlined, size: 80, color: Colors.white10),
           const SizedBox(height: 16),
           Text(
-            "No tracks found in $_selectedGenre",
+            "No tracks found",
             style: const TextStyle(
               color: Colors.white38,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "Try selecting another category",
-            style: TextStyle(color: Colors.white24, fontSize: 14),
           ),
         ],
       ),
