@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/music.dart';
+import '../../services/user_service.dart';
 
 class FavoritePage extends StatefulWidget {
   const FavoritePage({super.key});
@@ -9,161 +9,196 @@ class FavoritePage extends StatefulWidget {
 }
 
 class _FavoritePageState extends State<FavoritePage> {
-  // Mock Data
-  final List<Music> favoriteSongs = [
-    Music(
-      id: '1',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "Pop",
-      image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
-    ),
-    Music(
-      id: '2',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "R&B",
-      image:
-          "https://upload.wikimedia.org/wikipedia/en/5/52/Daniel_Caesar_Get_You.jpg",
-    ),
-    Music(
-      id: '3',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "Indie",
-      image: "https://i.ytimg.com/vi/UGB_Bsm5Unk/maxresdefault.jpg",
-    ),
-    Music(
-      id: '4',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "R&B",
-      image:
-          "https://upload.wikimedia.org/wikipedia/en/2/2a/Giveon_-_Heartbreak_Anniversary.png",
-    ),
-    Music(
-      id: '5',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "Pop",
-      image: "https://i.ytimg.com/vi/yNNMKN9BUmU/maxresdefault.jpg",
-    ),
-    Music(
-      id: '6',
-      title: "Loser",
-      artist: "UrboyTJ",
-      genre: "R&B",
-      image:
-          "https://upload.wikimedia.org/wikipedia/en/5/52/Daniel_Caesar_Get_You.jpg",
-    ),
-  ];
+  // State
+  List<Map<String, dynamic>> _favoriteSongs = [];
+  Map<String, dynamic>? _profile;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      // โหลด Profile และ Favorites พร้อมกัน
+      final results = await Future.wait([
+        ApiService.getProfile(),
+        ApiService.getMyFavorites(),
+      ]);
+
+      setState(() {
+        _profile = results[0] as Map<String, dynamic>;
+        _favoriteSongs = (results[1] as List).cast<Map<String, dynamic>>();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
       appBar: _buildAppBar(context),
-      body: Column(
-        children: [
-          // --- Profile Header Section ---
-          const SizedBox(height: 10),
-          _buildProfileHeader(),
-
-          // --- Section Title ---
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "FAVORITE SONG",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Container(height: 1, color: Colors.grey[700]),
-              ],
-            ),
-          ),
-
-          // --- Grid View ---
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: GridView.builder(
-                itemCount: favoriteSongs.length,
-                physics: const BouncingScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 0.7,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemBuilder: (context, index) {
-                  final song = favoriteSongs[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            image: DecorationImage(
-                              image: NetworkImage(song.image),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Song Title with Heart Icon
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              song.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.favorite,
-                            color: Colors.redAccent, // Heart icon color
-                            size: 14,
-                          ),
-                        ],
-                      ),
-                      // Artist Name
-                      Text(
-                        song.artist,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
+      body: _buildBody(),
     );
   }
 
-  // Widget Mini Profile Header (Name & Avatar)
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'เกิดข้อผิดพลาด\n$_errorMessage',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _errorMessage = null;
+                });
+                _loadData();
+              },
+              child: const Text('ลองใหม่'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        _buildProfileHeader(),
+
+        // Section Title
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "FAVORITE SONG (${_favoriteSongs.length})",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Container(height: 1, color: Colors.grey[700]),
+            ],
+          ),
+        ),
+
+        // Grid View
+        Expanded(
+          child: _favoriteSongs.isEmpty
+              ? const Center(
+                  child: Text(
+                    'ยังไม่มีเพลงโปรด',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: GridView.builder(
+                    itemCount: _favoriteSongs.length,
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.7,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemBuilder: (context, index) {
+                      final song = _favoriteSongs[index];
+                      final coverUrl = song['song_cover_url'] as String?;
+                      final songName = song['song_name'] ?? 'Unknown';
+                      final artistName = song['artist_name'] ?? '';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.grey[800],
+                                image: coverUrl != null && coverUrl.isNotEmpty
+                                    ? DecorationImage(
+                                        image: NetworkImage(coverUrl),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: coverUrl == null || coverUrl.isEmpty
+                                  ? const Center(
+                                      child: Icon(Icons.music_note,
+                                          color: Colors.white54, size: 32),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  songName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const Icon(
+                                Icons.favorite,
+                                color: Colors.redAccent,
+                                size: 14,
+                              ),
+                            ],
+                          ),
+                          Text(
+                            artistName,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProfileHeader() {
+    final username = _profile?['username'] ?? '';
     return Row(
       children: [
         const SizedBox(width: 24),
@@ -180,9 +215,9 @@ class _FavoritePageState extends State<FavoritePage> {
           ),
         ),
         const SizedBox(width: 20),
-        const Text(
-          "Peter",
-          style: TextStyle(
+        Text(
+          username,
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -192,7 +227,6 @@ class _FavoritePageState extends State<FavoritePage> {
     );
   }
 
-  // AppBar
   AppBar _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,

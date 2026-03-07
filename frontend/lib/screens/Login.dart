@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:frontend/screens/admin/Inventory_page.dart';
 import 'package:frontend/screens/app.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'register.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -84,7 +85,10 @@ class _LoginState extends State<Login> {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         String token = data['access_token'];
-        print("Sign in Success Token: $token");
+
+        // Save token ลง SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('access_token', token);
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('access_token', token);
@@ -112,18 +116,14 @@ class _LoginState extends State<Login> {
           await prefs.setString('email', profile['email']);
         }
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Log in Success"),
             backgroundColor: Colors.green,
           ),
         );
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => App()),
-          (route) => false,
-        );
+        // TODO: Navigate to Home Page
       } else {
         print("Login failed: ${response.body}");
         _showErrorSnackBar("Email or Password does not Correct!!!");
@@ -300,6 +300,7 @@ class _LoginState extends State<Login> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
+                        onPressed: _isLoading ? null : _login,
                         onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromRGBO(30, 223, 99, 1),
