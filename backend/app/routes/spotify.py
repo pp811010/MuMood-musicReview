@@ -48,18 +48,20 @@ async def get_top_charts():
 @router.get("/songs-by-genre")
 async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
     token = await get_spotify_token()
-
     async with httpx.AsyncClient() as client:
+        if genre.lower() == "all":
+            params = {"q": "a", "type": "track", "limit": limit, "market": "US"}
+        else:
+            params = {"q": f"genre:{genre}", "type": "track", "limit": limit, "market": "US"}
+
         response = await client.get(
             "https://api.spotify.com/v1/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": f"genre:{genre}", "type": "track", "limit": limit, "market": "US"}
+            params=params
         )
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.json())
-
         tracks = response.json()["tracks"]["items"]
-
     results = [{
         "id": t["id"],
         "song_name": t["name"],

@@ -6,15 +6,11 @@ from sqlalchemy import select
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 import jwt
-
+from app.core.config import settings
 from app.database import get_db
 from app.schemas.user import TokenData
 from app.models import User
 
-# ⭐ ลบออก (ย้ายไป setting.py)
-# SECRET_KEY = "codewithfuengpopo"
-# ALGORITHM = "HS256"
-# TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login/")
@@ -27,7 +23,7 @@ def get_pwd_hash(password: str) -> str:
     """Hash password"""
     return pwd_context.hash(password)
 
-def create_acces_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """สร้าง JWT token"""
     to_encode = data.copy()
     if expires_delta:
@@ -36,15 +32,36 @@ def create_acces_token(data: dict, expires_delta: Optional[timedelta] = None):
         expire = datetime.utcnow() + timedelta(minutes=15)
     
     to_encode.update({"exp": expire})
-    
-    # ⭐ ใช้จาก settings
+
     encoded_jwt = jwt.encode(to_encode, "MuMoodPopoWanPound", algorithm= "HS256")
     return encoded_jwt
+
+def create_refresh_token(data: dict) -> str:        
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+def verify_token(token: str, expected_type: str = "access") -> TokenData:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        
+        if payload.get("type") != expected_type: 
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+        return TokenData(email=email)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 def verifty_token(token: str) -> TokenData:
     """Verify JWT token"""
     try: 
-        # ⭐ ใช้จาก settings
         payload = jwt.decode(token, "MuMoodPopoWanPound", algorithms=[ "HS256"])
         email: str = payload.get("sub")
         if email is None:
@@ -57,7 +74,7 @@ def verifty_token(token: str) -> TokenData:
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
-) -> User:  # ⭐ เพิ่ม return type
+) -> User: 
     """ดึง current user จาก JWT token"""
     token_data = verifty_token(token)
     
@@ -70,10 +87,10 @@ async def get_current_user(
     
     return user
 
-async def get_current_active_user(  # ⭐ เพิ่ม async
+async def get_current_active_user( 
     current_user: User = Depends(get_current_user)
 ) -> User:  # ⭐ เพิ่ม return type
     """ตรวจสอบว่า user active"""
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")  # ⭐ แก้ 404 → 400
+        raise HTTPException(status_code=400, detail="Inactive user") 
     return current_user

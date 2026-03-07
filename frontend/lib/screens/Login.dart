@@ -5,8 +5,8 @@ import 'package:frontend/screens/admin/admin_app.dart';
 import 'package:frontend/screens/app.dart';
 import 'package:frontend/screens/user/home.dart';
 import 'package:http/http.dart' as http;
-import 'register.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'register.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -16,7 +16,6 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -24,7 +23,7 @@ class _LoginState extends State<Login> {
   bool _isLoading = false;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _loadRememberMe();
   }
@@ -87,10 +86,10 @@ class _LoginState extends State<Login> {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         String token = data['access_token'];
-        print("Sign in Success Token: $token");
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('access_token', token);
+        await prefs.setString('refresh_token', data['refresh_token']);
 
         if (_rememberMe) {
           await prefs.setBool('remember_me', true);
@@ -102,19 +101,26 @@ class _LoginState extends State<Login> {
           await prefs.remove('saved_password');
         }
 
+        final profileResponse = await http.get(
+          Uri.parse('http://10.0.2.2:8000/users/profile'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
 
+        if (profileResponse.statusCode == 200) {
+          final profile = jsonDecode(profileResponse.body);
+          await prefs.setInt('user_id', profile['id']);
+          await prefs.setString('username', profile['username']);
+          await prefs.setString('email', profile['email']);
+        }
+
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Log in Success!"),
+            content: Text("Log in Success"),
             backgroundColor: Colors.green,
           ),
         );
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => App()),
-          (route) => false,
-        );
+        // TODO: Navigate to Home Page
       } else {
         print("Login failed: ${response.body}");
         _showErrorSnackBar("Email or Password does not Correct!!!");
@@ -281,15 +287,6 @@ class _LoginState extends State<Login> {
                               style: TextStyle(color: Colors.white),
                             ),
                           ],
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            // TODO: Handle Forgot Password
-                          },
-                          child: const Text(
-                            'Forgot Password?',
-                            style: TextStyle(color: Colors.white54),
-                          ),
                         ),
                       ],
                     ),

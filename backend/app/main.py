@@ -1,19 +1,17 @@
-from typing import Union
 from app.routes import auth
 from app.routes import admin
 from app.routes import favorite, song
 from app.routes import spotify
-import requests
-from fastapi.staticfiles import StaticFiles
+from app.routes import mood_color
+from app.routes import review
+from app.routes import emotion
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import FastAPI
 
-from app.routes import review
-
 app = FastAPI()
-# สำคัญมาก: ต้องเปิด CORS เพื่อให้ Flutter เรียกได้
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -27,6 +25,8 @@ app.include_router(song.router)
 app.include_router(spotify.router)
 app.include_router(review.router)
 app.include_router(favorite.router)
+app.include_router(emotion.router)
+app.include_router(mood_color.router)
 
 # mount image path file
 app.mount("/static", StaticFiles(directory="static"), name="static")

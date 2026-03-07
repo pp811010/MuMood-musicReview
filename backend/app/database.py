@@ -6,7 +6,6 @@ from typing import Annotated
 from fastapi import Depends  
 from pathlib import Path
 
-
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
