@@ -3,6 +3,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 import asyncio
+import os
 from app.models import Favorite, Review, Song, User
 from app.schemas.song import SongCreate, SongResponse, SongUpdate
 from app.database import SessionDep
@@ -215,12 +216,26 @@ async def update_song(song_id: int, song_update: SongUpdate, db: SessionDep):
 
 @router.delete("/{song_id}")
 async def delete_song(song_id: int, db: SessionDep):
+    # 1. ค้นหาข้อมูลเพลงจาก DB
     stmt = select(Song).where(Song.id == song_id)
     result = await db.execute(stmt)
     db_song = result.scalar_one_or_none()
+    
     if not db_song:
         raise HTTPException(status_code=404, detail="Song not found")
+
+    # 2. ตรวจสอบและลบไฟล์ Static (ถ้ามี)
+    if db_song.song_cover_url and db_song.song_cover_url.startswith("/static"):
+        file_path = db_song.song_cover_url.lstrip("/")
         
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Successfully deleted static file: {file_path}")
+        except Exception as e:
+            print(f"Error deleting static file: {e}")
+
     await db.delete(db_song)
     await db.commit()
-    return {"message": "Song deleted successfully"}
+    
+    return {"status": "success", "message": "Song and its static file deleted"}
