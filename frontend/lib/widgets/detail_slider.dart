@@ -4,14 +4,14 @@ class BuildSlider extends StatelessWidget {
   final String label;
   final Color color;
   final double value;
-  final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChanged;
 
   const BuildSlider({
     super.key,
     required this.label,
     required this.color,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
   });
 
   @override
@@ -34,19 +34,14 @@ class BuildSlider extends StatelessWidget {
             child: SliderTheme(
               data: SliderThemeData(
                 trackHeight: 3,
-                activeTrackColor: color,
+                activeTrackColor: onChanged == null ? Colors.white24 : color,
                 inactiveTrackColor: Colors.white.withOpacity(0.1),
-                thumbColor: color,
+                thumbColor: onChanged == null ? Colors.white24 : color,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                 overlayColor: color.withOpacity(0.2),
               ),
-              child: Slider(
-                value: value,
-                min: 0,
-                max: 5,
-                onChanged: onChanged, 
-              ),
+              child: Slider(value: value, min: 0, max: 5, onChanged: onChanged),
             ),
           ),
           SizedBox(

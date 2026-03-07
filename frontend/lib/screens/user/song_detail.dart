@@ -30,6 +30,7 @@ class _MusicDetailState extends State<MusicDetail> {
   double lyricValue = 0;
   double moodValue = 0;
   bool _isSubmitting = false;
+  bool _isEditingReview = false; // true = กำลัง edit หลัง submit แล้ว
   final TextEditingController _commentController = TextEditingController();
 
   bool hasMyComment = false;
@@ -196,7 +197,9 @@ class _MusicDetailState extends State<MusicDetail> {
     setState(() => _isSubmitting = true);
     try {
       final ok = await submitRating(
-        songIdReference: songDetail!.id.toString(),
+        songIdReference: songDetail!.source == 'spotify'
+            ? widget.id
+            : songDetail!.id.toString(),
         source: songDetail!.source,
         emotionId: selectedEmotionId!,
         moodColorId: selectedMoodColorId!,
@@ -206,6 +209,7 @@ class _MusicDetailState extends State<MusicDetail> {
       );
       if (ok) {
         _showSnack("Rating submitted", Colors.green);
+        setState(() => _isEditingReview = false); // lock หลัง submit
         await _fetchDetailSong(isSilent: true);
       } else {
         _showSnack("Something went wrong", Colors.red);
@@ -235,6 +239,7 @@ class _MusicDetailState extends State<MusicDetail> {
     );
     if (ok) {
       _showSnack("Updated Shared Rating", Colors.green);
+      setState(() => _isEditingReview = false); // lock หลัง update
       await _fetchDetailSong(isSilent: true);
     }
   }
@@ -282,9 +287,14 @@ class _MusicDetailState extends State<MusicDetail> {
   }
 
   Future<void> _toggleFavorite() async {
+    if (songDetail == null) return;
     final result = await toggleFavorite(
-      songIdReference: widget.id,
-      source: "spotify",
+      // ใช้ songDetail.id เสมอ (DB id) + source ที่ถูกต้อง
+      // กรณี source=spotify และยังไม่เคย save ใน DB จะใช้ widget.id (spotify id) แทน
+      songIdReference: songDetail!.source == 'spotify'
+          ? widget.id
+          : songDetail!.id,
+      source: songDetail!.source,
     );
     if (result != null) {
       setState(() => isfavorite = result.isFavorited);
@@ -301,12 +311,11 @@ class _MusicDetailState extends State<MusicDetail> {
 
   Future<void> createComment() async {
     if (_commentController.text.trim().isEmpty) return;
-    if (myReview.isEmpty) {
-      _showIncompleteWarning();
-      return;
-    }
     try {
-      if (myReview['comment'] == null) {
+      if (myReview.isEmpty) {
+        // ใช้ endpoint ใหม่ที่แยก comment จาก rating
+        await _submitCommentStandalone();
+      } else if (myReview['comment'] == null) {
         await _submitComment();
       } else {
         await _updateComment();
@@ -316,8 +325,26 @@ class _MusicDetailState extends State<MusicDetail> {
         _commentController.clear();
         hasMyComment = true;
       });
+      await _fetchDetailSong(isSilent: true);
     } catch (e) {
       debugPrint("Error: $e");
+    }
+  }
+
+  /// Post comment โดยไม่ต้องมี rating ก่อน (ใช้ POST /review/comment)
+  Future<void> _submitCommentStandalone() async {
+    final response = await ApiClient.post('/review/comment', {
+      "comment": _commentController.text,
+      "song_id_reference": songDetail!.source == 'spotify'
+          ? widget.id
+          : songDetail!.id.toString(),
+      "source": songDetail!.source,
+    });
+    if (response.statusCode == 200) {
+      _showSnack("Comment posted", Colors.green);
+      await _fetchMyReview(); // reload reviewId ที่เพิ่งสร้าง
+    } else {
+      _showSnack("Failed to post comment", Colors.red);
     }
   }
 
@@ -455,38 +482,109 @@ class _MusicDetailState extends State<MusicDetail> {
                         const SizedBox(height: 25),
                         _buildColorMoodSection(),
                         const SizedBox(height: 20),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _isSubmitting
-                                  ? Colors.grey
-                                  : Colors.white,
-                            ),
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => myReview.isEmpty
-                                      ? _submitSharedRating()
-                                      : _updateSharedRating(),
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.black,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    "Shared Rating",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.black,
-                                    ),
+                        // ─── ปุ่ม Edit / Submit ───
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // ถ้า submit แล้วและไม่ได้ editing — โชว์ปุ่ม Edit
+                            if (myReview.isNotEmpty && !_isEditingReview)
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Colors.white38),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                          ),
+                                ),
+                                onPressed: () =>
+                                    setState(() => _isEditingReview = true),
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                label: const Text(
+                                  "Edit",
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            // ถ้ายังไม่ submit หรือกำลัง editing — โชว์ปุ่ม Submit/Save
+                            if (myReview.isEmpty || _isEditingReview) ...[
+                              if (_isEditingReview)
+                                TextButton(
+                                  onPressed: () =>
+                                      setState(() => _isEditingReview = false),
+                                  child: const Text(
+                                    "Cancel",
+                                    style: TextStyle(color: Colors.white38),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _isSubmitting
+                                      ? Colors.grey
+                                      : Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                ),
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => myReview.isEmpty
+                                          ? _submitSharedRating()
+                                          : _updateSharedRating(),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.black,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Text(
+                                        myReview.isEmpty
+                                            ? "Submit Rating"
+                                            : "Save",
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 32),
+                        // ─── Divider แยก Rating / Comment ───
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white24,
+                                thickness: 1,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                "COMMENTS",
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white24,
+                                thickness: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                         _buildCommentSection(),
                         const SizedBox(height: 60),
                       ],
@@ -573,9 +671,13 @@ class _MusicDetailState extends State<MusicDetail> {
           count: emotionCounts[emotion.name] ?? 0,
           selectedColor: selectedColor,
           onTap: () {
+            // lock ถ้า submit แล้วและยังไม่ได้กด Edit
+            if (myReview.isNotEmpty && !_isEditingReview) return;
             setState(() {
               if (selectedEmotion == emotion.name) {
+                // deselect ได้ตามปกติ
                 selectedEmotion = null;
+                selectedEmotionId = null;
                 emotionCounts[emotion.name] =
                     (emotionCounts[emotion.name] ?? 1) - 1;
               } else {
@@ -632,23 +734,29 @@ class _MusicDetailState extends State<MusicDetail> {
         ),
         const SizedBox(height: 10),
         BuildSlider(
-          label:'Beat',
-          color:   const Color.fromARGB(255, 229, 206, 107),
-          value:  beatValue,
-          onChanged:  (v) => setState(() => beatValue = v),
+          label: 'Beat',
+          color: const Color.fromARGB(255, 229, 206, 107),
+          value: beatValue,
+          onChanged: (myReview.isNotEmpty && !_isEditingReview)
+              ? null
+              : (v) => setState(() => beatValue = v),
         ),
         BuildSlider(
-          label:  'Lyric',
-          color:  const Color.fromARGB(255, 236, 123, 123),
-          value:  lyricValue,
-          onChanged:  (v) => setState(() => lyricValue = v),
+          label: 'Lyric',
+          color: const Color.fromARGB(255, 236, 123, 123),
+          value: lyricValue,
+          onChanged: (myReview.isNotEmpty && !_isEditingReview)
+              ? null
+              : (v) => setState(() => lyricValue = v),
         ),
-          BuildSlider(
-            label: 'Mood',
-            color:  Color.fromARGB(173, 150, 81, 184),
-            value: moodValue,
-            onChanged: (v) => setState(() => moodValue = v),
-          ),
+        BuildSlider(
+          label: 'Mood',
+          color: Color.fromARGB(173, 150, 81, 184),
+          value: moodValue,
+          onChanged: (myReview.isNotEmpty && !_isEditingReview)
+              ? null
+              : (v) => setState(() => moodValue = v),
+        ),
       ],
     );
   }
@@ -673,10 +781,12 @@ class _MusicDetailState extends State<MusicDetail> {
                     final count = songDetail?.colorCounts[mood.colorHex] ?? 0;
                     final isSelected = selectedMoodColorId == mood.id;
                     return GestureDetector(
-                      onTap: () => setState(() {
-                        selectedColor = color;
-                        selectedMoodColorId = mood.id;
-                      }),
+                      onTap: (myReview.isNotEmpty && !_isEditingReview)
+                          ? null
+                          : () => setState(() {
+                              selectedColor = color;
+                              selectedMoodColorId = mood.id;
+                            }),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         margin: const EdgeInsets.only(right: 10),
@@ -725,7 +835,6 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
-  
   // ─── COMMENT SECTION ──────────────────────────────────────────────────────
 
   Widget _buildCommentSection() {

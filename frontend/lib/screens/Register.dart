@@ -32,6 +32,8 @@ class _RegisterState extends State<Register> {
   ];
 
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
@@ -53,6 +55,15 @@ class _RegisterState extends State<Register> {
 
   Future<void> _register() async {
     // 1. Validation
+    final email = _emailController.text.trim();
+    if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
+      _showMessage(
+        "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
+        isError: true,
+      );
+      return;
+    }
+
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showMessage("Please fill in all fields", isError: true);
       return;
@@ -152,13 +163,27 @@ class _RegisterState extends State<Register> {
 
               // Password
               _buildLabel('Password'),
-              _buildTextField(_passwordController, '********', true),
+              _buildTextField(
+                _passwordController,
+                '********',
+                true,
+                obscure: _obscurePassword,
+                onToggle: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+              ),
 
               const SizedBox(height: 15),
 
               // Confirm Password
               _buildLabel('Confirm Password'),
-              _buildTextField(_confirmController, '********', true),
+              _buildTextField(
+                _confirmController,
+                '********',
+                true,
+                obscure: _obscureConfirm,
+                onToggle: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
 
               const SizedBox(height: 15),
 
@@ -281,13 +306,15 @@ class _RegisterState extends State<Register> {
   Widget _buildTextField(
     TextEditingController controller,
     String hint,
-    bool isPassword,
-  ) {
+    bool isPassword, {
+    bool obscure = true,
+    VoidCallback? onToggle,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: TextField(
         controller: controller,
-        obscureText: isPassword,
+        obscureText: isPassword ? obscure : false,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: hint,
@@ -302,6 +329,16 @@ class _RegisterState extends State<Register> {
             horizontal: 20,
             vertical: 15,
           ),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    obscure ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.white54,
+                    size: 20,
+                  ),
+                  onPressed: onToggle,
+                )
+              : null,
         ),
       ),
     );

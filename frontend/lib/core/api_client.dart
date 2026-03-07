@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -19,7 +18,10 @@ class ApiClient {
     });
   }
 
-  static Future<http.Response> post(String path, Map<String, dynamic> body) async {
+  static Future<http.Response> post(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     return await _request(() async {
       final token = await _getAccessToken();
       return await http.post(
@@ -30,8 +32,10 @@ class ApiClient {
     });
   }
 
-
-  static Future<http.Response> put(String path, Map<String, dynamic> body) async {
+  static Future<http.Response> put(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     return await _request(() async {
       final token = await _getAccessToken();
       return await http.put(
@@ -41,7 +45,6 @@ class ApiClient {
       );
     });
   }
-
 
   static Future<http.Response> delete(String path) async {
     return await _request(() async {
@@ -53,12 +56,10 @@ class ApiClient {
     });
   }
 
-
   static Map<String, String> _headers(String? token) => {
     'Content-Type': 'application/json',
     if (token != null) 'Authorization': 'Bearer $token',
   };
-
 
   static Future<http.Response> _request(
     Future<http.Response> Function() call,
@@ -68,7 +69,7 @@ class ApiClient {
     if (response.statusCode == 401) {
       final refreshed = await _tryRefresh();
       if (refreshed) {
-        response = await call(); 
+        response = await call();
       } else {
         await _forceLogout();
       }
@@ -77,7 +78,6 @@ class ApiClient {
     return response;
   }
 
- 
   static Future<bool> _tryRefresh() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -107,7 +107,6 @@ class ApiClient {
     return prefs.getString('access_token');
   }
 
-
   static Future<void> _forceLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
@@ -118,3 +117,5 @@ class ApiClient {
     );
   }
 }
+
+final ValueNotifier<int> dataRefreshNotifier = ValueNotifier<int>(0);
