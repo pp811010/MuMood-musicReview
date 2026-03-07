@@ -35,6 +35,7 @@ class Song(Base):
     song_cover_url = Column(String, nullable=True)
     preview_url = Column(String, nullable=True)
     category = Column(String, nullable=True)
+    link_url = Column(String, nullable=True)
     is_custom_added = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
     updated_at = Column(DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc)

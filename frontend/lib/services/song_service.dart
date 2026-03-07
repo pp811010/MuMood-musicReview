@@ -24,6 +24,8 @@ Future<SongDetail?> fetchDetailSong(String songId) async {
       colorCounts: colors.map((k, v) => MapEntry(k, v as int)),
       comment: comments,
       source: result['source'] ?? '',
+      previewUrl: result['preview_url'],
+      spotifyUrl: result['spotify_url'],
     );
 }
 

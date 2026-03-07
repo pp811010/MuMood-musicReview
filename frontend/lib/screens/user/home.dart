@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:frontend/core/api_client.dart'; // ✅ import ApiClient
+import 'package:frontend/core/api_client.dart';
 import 'package:frontend/widgets/song.card.dart';
 import 'package:frontend/widgets/song_card_shimmer.dart';
 import 'package:frontend/widgets/trending_list.dart';
@@ -219,7 +219,7 @@ class _HomeState extends State<Home> {
           decoration: const BoxDecoration(
             image: DecorationImage(
               image: NetworkImage(
-                "https://cached.imagescaler.hbpl.co.uk/resize/scaleWidth/1272/cached.offlinehbpl.hbpl.co.uk/news/ORP/badbunny-g-rm-prwus-2236505269.jpg",
+                "https://ca-times.brightspotcdn.com/dims4/default/f854f6b/2147483647/strip/true/crop/5568x3712+0+0/resize/1200x800!/quality/75/?url=https%3A%2F%2Fcalifornia-times-brightspot.s3.amazonaws.com%2Faa%2F18%2Fe54c32e242b684c943ea0cf6c222%2Fap21310170175809.jpg",
               ),
               fit: BoxFit.fill,
             ),
@@ -345,10 +345,10 @@ class _HomeState extends State<Home> {
             ),
           ),
           SizedBox(width: 10),
-          Icon(
-            Icons.local_fire_department,
-            color: const Color.fromARGB(255, 30, 132, 220),
-          ),
+          // Icon(
+          //   Icons.local_fire_department,
+          //   color: const Color.fromARGB(255, 30, 132, 220),
+          // ),
         ],
       ),
     );

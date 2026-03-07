@@ -74,28 +74,6 @@ async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
     return {"status": "success", "genre": genre, "songs": results}
 
 
-@router.get("/all-songs")
-async def get_all_songs(db: SessionDep):
-    """ดึงเพลงทั้งหมดพร้อมจัดการ Path รูปภาพให้สมบูรณ์"""
-    result = await db.execute(select(Song).order_by(Song.id.desc()))
-    songs = result.scalars().all()
-
-    results = []
-    for s in songs:
-        img_url = s.song_cover_url
-        if img_url and img_url.startswith("/static"):
-            img_url = f"{BASE_URL}{img_url}"
-            
-        results.append({
-            "id": s.id,
-            "spotify_id": s.spotify_id,
-            "name": s.song_name,
-            "artist": s.artist_name,
-            "image": img_url,
-            "preview_url": s.preview_url,
-            "is_custom": s.is_custom_added
-        })
-    return {"results": results}
 
 @router.get("/search")
 async def search_music(q: str = Query(...)):
@@ -112,28 +90,21 @@ async def search_music(q: str = Query(...)):
     if "tracks" not in data:
         return {"results": [], "error": "No tracks found"}
 
-    results = [{
-        "id": item["id"],
-        "name": item["name"],
-        "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
-        "image": item["album"]["images"][0]["url"] if item.get("album") and item["album"].get("images") else None,
-        "preview_url": item.get("preview_url"),
-        "is_custom": False
-    } for item in data["tracks"]["items"]]
+    results = [item for item in data["tracks"]["items"]]
 
     return {"results": results}
 
 
-@router.get("/get-detail/{spotify_id}")
-async def get_music(spotify_id: str):
-    token = await get_spotify_token()
+# @router.get("/get-detail/{spotify_id}")
+# async def get_music(spotify_id: str):
+#     token = await get_spotify_token()
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"https://api.spotify.com/v1/tracks/{spotify_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail=response.json())
+#     async with httpx.AsyncClient() as client:
+#         response = await client.get(
+#             f"https://api.spotify.com/v1/tracks/{spotify_id}",
+#             headers={"Authorization": f"Bearer {token}"}
+#         )
+#         if response.status_code != 200:
+#             raise HTTPException(status_code=response.status_code, detail=response.json())
 
-    return {"results": response.json()}
+#     return {"results": response.json()}

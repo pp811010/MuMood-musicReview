@@ -10,6 +10,8 @@ class SongDetail {
   final Map<String, int> colorCounts;
   final List<dynamic> comment;
   final String source;
+  final String? previewUrl; 
+  final String? spotifyUrl;
 
 
   SongDetail({
@@ -24,5 +26,7 @@ class SongDetail {
     required this.colorCounts,
     required this.comment,
     required this.source,
+    required this.previewUrl,
+    required this.spotifyUrl
   });
 }

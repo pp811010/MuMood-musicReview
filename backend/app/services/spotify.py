@@ -3,6 +3,7 @@
 import httpx
 from fastapi import HTTPException
 from app.core.config import settings
+from app.routes.deeza import fetch_deezer_preview
 
 
 async def get_spotify_token() -> str:
@@ -36,6 +37,11 @@ async def fetch_spotify_track(spotify_id: str) -> dict:
 
         category = "General"
         artists = data.get("artists", [])
+
+        preview_url = await fetch_deezer_preview(data.get("name"), artists[0]["name"] if artists else "")
+        link_url = data.get("external_urls", {}).get("spotify")
+
+
         if artists:
             artist_id = artists[0]["id"]
             artist_response = await client.get(
@@ -83,6 +89,7 @@ async def fetch_spotify_track(spotify_id: str) -> dict:
             "artist": ", ".join([a["name"] for a in artists]),
             "album": album_name,
             "cover": cover_url,
-            "preview_url": data.get("preview_url"),
-            "category": category
+            "preview_url": preview_url, 
+            "category": category,
+            "link_url": link_url
         }

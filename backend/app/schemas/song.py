@@ -8,6 +8,7 @@ class SongBase(BaseModel):
     song_cover_url: Optional[str] = None
     preview_url: Optional[str] = None
     category: Optional[str] = None
+    link_url:  Optional[str] = None
 
 class SongCreate(SongBase):
     spotify_id: Optional[str] = None
@@ -38,6 +39,7 @@ class SongResponse(BaseModel):
     dominant_color: Optional[str] = None 
     song_cover_url: Optional[str] = None 
     preview_url: Optional[str] = None 
+    link_url: Optional[str] = None
 
     class Config:
         from_attributes = True

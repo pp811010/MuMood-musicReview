@@ -130,7 +130,6 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Widget _buildReviewCard(Map<String, dynamic> review) {
-    // ข้อมูลจาก Review model
     final beatScore = (review['beat_score'] ?? 0.0).toStringAsFixed(1);
     final lyricScore = (review['lyric_score'] ?? 0.0).toStringAsFixed(1);
     final moodScore = (review['mood_score'] ?? 0.0).toStringAsFixed(1);
@@ -138,7 +137,6 @@ class _HistoryPageState extends State<HistoryPage> {
     final songId = review['song_id'];
 
     return FutureBuilder<Map<String, dynamic>>(
-      // ดึงข้อมูลเพลงแบบ lazy โดยใช้ song_id
       future: ApiService.getSongDetail('$songId'),
       builder: (context, snapshot) {
         final coverUrl = snapshot.data?['song_cover_url'];

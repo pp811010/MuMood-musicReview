@@ -501,9 +501,12 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
-  // ─── WIDGETS ──────────────────────────────────────────────────────────────
 
   Widget _buildMusicCover() {
+    final raw = songDetail!.image;
+    final imageUrl = (raw != null && raw.startsWith('/')) 
+        ? 'http://10.0.2.2:8000$raw' 
+        : raw;
     return Column(
       children: [
         Container(
@@ -523,7 +526,7 @@ class _MusicDetailState extends State<MusicDetail> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.network(
-              songDetail!.image ?? '',
+              imageUrl ?? '',
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 color: Colors.grey[800],
@@ -552,16 +555,9 @@ class _MusicDetailState extends State<MusicDetail> {
   }
 
   Widget _buildEmotionsSection() {
-    if (_loadingEmotion)
+    if (_loadingEmotion) {
       return const CircularProgressIndicator(color: Colors.white);
-    final Map<String, IconData> emotionIcons = {
-      'Happy': Icons.sentiment_very_satisfied,
-      'Sad': Icons.sentiment_very_dissatisfied,
-      'In Love': Icons.favorite,
-      'Lonely': Icons.nightlight_round,
-      'Missing': Icons.psychology,
-      'Heartbroken': Icons.heart_broken,
-    };
+    }
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
