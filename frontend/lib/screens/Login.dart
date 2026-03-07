@@ -120,7 +120,11 @@ class _LoginState extends State<Login> {
             backgroundColor: Colors.green,
           ),
         );
-        // TODO: Navigate to Home Page
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => App()),
+          (route) => false,
+        );
       } else {
         print("Login failed: ${response.body}");
         _showErrorSnackBar("Email or Password does not Correct!!!");
