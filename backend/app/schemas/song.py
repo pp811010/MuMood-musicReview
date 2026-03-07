@@ -12,6 +12,7 @@ class SongBase(BaseModel):
 class SongCreate(SongBase):
     spotify_id: Optional[str] = None
     is_custom_added: bool = False
+    preview_url: Optional[str] = None 
 
 class CommentInSong(BaseModel):
     user_id: int
@@ -36,6 +37,7 @@ class SongResponse(BaseModel):
     source: str
     dominant_color: Optional[str] = None 
     song_cover_url: Optional[str] = None 
+    preview_url: Optional[str] = None 
 
     class Config:
         from_attributes = True

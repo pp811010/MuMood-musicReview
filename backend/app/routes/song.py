@@ -29,6 +29,7 @@ async def search_songs(q: str, db: SessionDep):
         "name": s.song_name,
         "artist": s.artist_name,
         "image": s.song_cover_url,
+        "preview_url": s.preview_url,
         "source": "db"
     } for s in db_songs]
 
@@ -49,6 +50,7 @@ async def search_songs(q: str, db: SessionDep):
             "id": item["id"],
             "name": item["name"],
             "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
+            "preview_url": item.get("preview_url"),
             "image": item["album"]["images"][0]["url"] if item.get("album") else None,
             "source": "spotify"
         })
@@ -122,6 +124,7 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
                 "lyric": round(avg_lyric, 2),
                 "mood": round(avg_mood, 2),
             },
+            "preview_url": db_song.preview_url,
             "emotion_counts": emotion_counts,
             "color_counts": color_counts,
             "dominant_color": dominant_color,
@@ -161,6 +164,7 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
             "avg_scores": {"beat": 0.0, "lyric": 0.0, "mood": 0.0},
             "song_cover_url": data["album"]["images"][0]["url"] if data.get("album") else None,
             "emotion_counts": {},
+            "preview_url": data.get("preview_url"), 
             "color_counts": {},
             "dominant_color": None,
             "comment": [],

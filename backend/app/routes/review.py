@@ -46,6 +46,24 @@ async def get_review_me(
     return review
 
 
+@router.delete('/delete/comment/{review_id}')
+async def delete_review(
+    review_id: int,
+    db: SessionDep
+):
+    stmt = select(Review).where(Review.id == review_id);
+    result = await db.execute(stmt)
+    review = result.scalar_one_or_none();
+    
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    review.comment = None;
+    await db.commit()
+       
+    return {"massage": "delete comment success"}
+
+
 @router.post('/')
 async def create_review(
     db: SessionDep,

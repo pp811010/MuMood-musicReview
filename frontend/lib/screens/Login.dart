@@ -88,6 +88,7 @@ class _LoginState extends State<Login> {
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('access_token', token);
+        await prefs.setString('refresh_token', data['refresh_token']);
 
         if (_rememberMe) {
           await prefs.setBool('remember_me', true);
@@ -113,7 +114,7 @@ class _LoginState extends State<Login> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Log in Success!"),
+            content: Text("Log in Success"),
             backgroundColor: Colors.green,
           ),
         );

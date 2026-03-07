@@ -10,7 +10,7 @@ class ScoreCard extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: const Color.fromARGB(30, 136, 111, 249),
+      color: Colors.transparent ,
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: 22),
         child: Column(

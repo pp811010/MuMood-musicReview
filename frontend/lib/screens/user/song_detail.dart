@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:frontend/core/api_client.dart';
-import 'package:frontend/models/comment.dart';
 import 'package:frontend/models/emotion.dart';
 import 'package:frontend/models/mood_color.dart';
 import 'package:frontend/models/song_detail.dart';
-import 'package:frontend/widgets/comment_card.dart';
+import 'package:frontend/services/favorite_service.dart';
+import 'package:frontend/services/review_service.dart';
+import 'package:frontend/services/song_service.dart';
+import 'package:frontend/widgets/detail_slider.dart';
+import 'package:frontend/widgets/emotion_chip.dart';
 import 'package:frontend/widgets/score_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,26 +25,19 @@ class _MusicDetailState extends State<MusicDetail> {
   Color selectedColor = Colors.purple;
   String? selectedEmotion;
   bool openReview = false;
-  late Map<String, int> emotionCounts;
-  double? beatValue;
-  double? lyricValue;
-  double? moodValue;
+  Map<String, int> emotionCounts = {};
+  double beatValue = 0;
+  double lyricValue = 0;
+  double moodValue = 0;
   bool _isSubmitting = false;
-  int meId = 10;
-  late final TextEditingController _commentController = TextEditingController();
+  final TextEditingController _commentController = TextEditingController();
 
   bool hasMyComment = false;
-  Comment? myComment;
-
   bool _loadingEmotion = false;
   List<Emotion> allEmotion = [];
-
   bool _loadingMoodColor = false;
   List<MoodColor> allMoodColor = [];
-
-  bool _loadingSongDetail = false;
   SongDetail? songDetail;
-
   String myUserName = '';
   int? selectedEmotionId;
   int? selectedMoodColorId;
@@ -64,9 +60,7 @@ class _MusicDetailState extends State<MusicDetail> {
 
   void _getPerfs() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      myUserName = prefs.getString('username') ?? '';
-    });
+    setState(() => myUserName = prefs.getString('username') ?? '');
   }
 
   Color hexToColor(String hex) {
@@ -77,9 +71,7 @@ class _MusicDetailState extends State<MusicDetail> {
   Future<void> _fetchEmotion() async {
     setState(() => _loadingEmotion = true);
     try {
-      // ✅ เปลี่ยนมาใช้ ApiClient
       final response = await ApiClient.get('/emotion/');
-
       if (response.statusCode == 200) {
         final List<dynamic> result = jsonDecode(response.body) ?? [];
         if (result.isNotEmpty) {
@@ -102,9 +94,7 @@ class _MusicDetailState extends State<MusicDetail> {
   Future<void> _fetchMood() async {
     setState(() => _loadingMoodColor = true);
     try {
-      // ✅ เปลี่ยนมาใช้ ApiClient
       final response = await ApiClient.get('/mood-color/');
-
       if (response.statusCode == 200) {
         final List<dynamic> result = jsonDecode(response.body);
         if (result.isNotEmpty) {
@@ -128,260 +118,199 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
- Future<void> _fetchDetailSong({bool isSilent = false}) async {
-  if (!isSilent) setState(() => _loadingSongDetail = true);
-  try {
-    // ✅ ดึง song detail ก่อน ไม่ต้องรอ myReview
-    final response = await ApiClient.get('/songs/detail/${widget.id}');
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> result = jsonDecode(response.body);
-      final avg = result['avg_scores'] as Map<String, dynamic>? ?? {};
-      final emotions = result['emotion_counts'] as Map<String, dynamic>? ?? {};
-      final colors = result['color_counts'] as Map<String, dynamic>? ?? {};
-      final comments = result['comment'] as List? ?? [];
-
-      setState(() {
-        // ✅ avg scores แสดงใน ScoreCard เท่านั้น ไม่ overwrite slider
-        isfavorite = result['favorite'] ?? false;
-        emotionCounts = emotions.map((key, value) => MapEntry(key, value as int));
-        songDetail = SongDetail(
-          id: result['id'],
-          image: result['song_cover_url'],
-          songName: result['song_name'],
-          dominantColor: result['dominant_color'],
-          artistName: result['artist_name'],
-          favorite: result['favorite'] ?? false,
-          avgScores: avg.map((k, v) => MapEntry(k, (v as num).toDouble())),
-          emotionCounts: emotions.map((k, v) => MapEntry(k, v as int)),
-          colorCounts: colors.map((k, v) => MapEntry(k, v as int)),
-          comment: comments,
-          source: result['source'] ?? '',
-        );
-      });
+  Future<void> _fetchDetailSong({bool isSilent = false}) async {
+    if (!isSilent) setState(() => songDetail = null);
+    try {
+      final detail = await fetchDetailSong(widget.id);
+      if (detail != null) {
+        setState(() {
+          isfavorite = detail.favorite;
+          emotionCounts = Map.from(detail.emotionCounts);
+          songDetail = detail;
+        });
+      }
+      await _fetchMyReview();
+    } catch (e) {
+      debugPrint('Error fetching song detail: $e');
     }
-
-    // ✅ ดึง myReview แยก หลังจาก song detail เสร็จ
-    await _fetchMyReview();
-
-  } catch (e) {
-    debugPrint('Error fetching song detail: $e');
-  } finally {
-    if (!isSilent) setState(() => _loadingSongDetail = false);
   }
-}
 
- Future<void> _fetchMyReview() async {
-  try {
-    final response = await ApiClient.get(
-      '/review/me?song_identifier=${widget.id}',
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      setState(() {
-        myReview = data;
-        // ✅ slider ใช้ค่าจาก myReview ของ user เท่านั้น
-        beatValue = (data['beat_score'] as num).toDouble();
-        lyricValue = (data['lyric_score'] as num).toDouble();
-        moodValue = (data['mood_score'] as num).toDouble();
-        selectedEmotionId = data['emotion_id'];
-        if (selectedEmotionId != null) {
-          final foundEmotion = allEmotion.firstWhere(
-            (e) => e.id == selectedEmotionId,
-            orElse: () => allEmotion.first,
-          );
-          selectedEmotion = foundEmotion.name;
-        }
-        selectedMoodColorId = data['mood_color_id'];
-        if (selectedMoodColorId != null) {
-          final foundMood = allMoodColor.firstWhere(
-            (m) => m.id == selectedMoodColorId,
-            orElse: () => allMoodColor.first,
-          );
-          selectedColor = hexToColor(foundMood.colorHex);
-        }
-        _commentController.text = data['comment'] ?? '';
-      });
-    } else {
-      // ✅ ยังไม่เคย review → reset slider เป็น 0
+  Future<void> _fetchMyReview() async {
+    try {
+      final data = await fetchMyReview(widget.id);
+      if (data != null) {
+        setState(() {
+          myReview = data;
+          hasMyComment =
+              data['comment'] != null &&
+              data['comment'].toString().trim().isNotEmpty;
+          beatValue = (data['beat_score'] as num).toDouble();
+          lyricValue = (data['lyric_score'] as num).toDouble();
+          moodValue = (data['mood_score'] as num).toDouble();
+          selectedEmotionId = data['emotion_id'];
+          if (selectedEmotionId != null && allEmotion.isNotEmpty) {
+            final found = allEmotion.firstWhere(
+              (e) => e.id == selectedEmotionId,
+            );
+            selectedEmotion = found.name;
+          }
+          selectedMoodColorId = data['mood_color_id'];
+          if (selectedMoodColorId != null && allMoodColor.isNotEmpty) {
+            final found = allMoodColor.firstWhere(
+              (m) => m.id == selectedMoodColorId,
+            );
+            selectedColor = hexToColor(found.colorHex);
+          }
+          _commentController.text = data['comment'] ?? '';
+        });
+      } else {
+        setState(() {
+          myReview = {};
+          hasMyComment = false;
+          beatValue = 0;
+          lyricValue = 0;
+          moodValue = 0;
+          selectedEmotionId = null;
+          selectedMoodColorId = null;
+          selectedEmotion = null;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching my review: $e");
       setState(() {
         myReview = {};
+        hasMyComment = false;
         beatValue = 0;
         lyricValue = 0;
         moodValue = 0;
-        selectedEmotionId = null;
-        selectedMoodColorId = null;
-        selectedEmotion = null;
       });
-    }
-  } catch (e) {
-    debugPrint("Error fetching my review: $e");
-    setState(() {
-      myReview = {};
-      beatValue = 0;
-      lyricValue = 0;
-      moodValue = 0;
-    });
-  }
-}
-
-  Future<void> _updateSharedRating() async {
-    bool isDataChanged() {
-      return beatValue != myReview['beat_score'] ||
-          lyricValue != myReview['lyric_score'] ||
-          moodValue != myReview['mood_score'] ||
-          selectedEmotionId != myReview['emotion_id'] ||
-          selectedMoodColorId != myReview['mood_color_id'];
-    }
-
-    if (!isDataChanged()) return;
-
-    // ✅ เปลี่ยนมาใช้ ApiClient
-    final response = await ApiClient.put('/review/${myReview['id']}', {
-      "beat_score": beatValue,
-      "lyric_score": lyricValue,
-      "mood_score": moodValue,
-      "emotion_id": selectedEmotionId,
-      "mood_color_id": selectedMoodColorId,
-    });
-
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Update successful!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-      await _fetchDetailSong(isSilent: true);
-    } else {
-      debugPrint("Update failed: ${response.body}");
     }
   }
 
   Future<void> _submitSharedRating() async {
-    if (_isSubmitting) return; // ✅ กัน double tap
+    if (_isSubmitting) return;
     if (!_isReviewComplete()) {
       _showIncompleteWarning();
       return;
     }
-
-    setState(() => _isSubmitting = true); // ✅ ล็อก
-
+    setState(() => _isSubmitting = true);
     try {
-      final response = await ApiClient.post('/review/', {
-        "song_id_reference": songDetail!.id.toString(),
-        "emotion_id": selectedEmotionId,
-        "mood_color_id": selectedMoodColorId,
-        "beat_score": beatValue,
-        "lyric_score": lyricValue,
-        "mood_score": moodValue,
-        "source": songDetail!.source,
-      });
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Rating submitted!"),
-            backgroundColor: Colors.green,
-          ),
-        );
+      final ok = await submitRating(
+        songIdReference: songDetail!.id.toString(),
+        source: songDetail!.source,
+        emotionId: selectedEmotionId!,
+        moodColorId: selectedMoodColorId!,
+        beatScore: beatValue,
+        lyricScore: lyricValue,
+        moodScore: moodValue,
+      );
+      if (ok) {
+        _showSnack("Rating submitted", Colors.green);
         await _fetchDetailSong(isSilent: true);
       } else {
-        final error = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error['detail'] ?? 'Something went wrong'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showSnack("Something went wrong", Colors.red);
       }
     } finally {
-      setState(() => _isSubmitting = false); // ✅ ปลดล็อกเสมอ
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _updateSharedRating() async {
+    bool isDataChanged() =>
+        beatValue != myReview['beat_score'] ||
+        lyricValue != myReview['lyric_score'] ||
+        moodValue != myReview['mood_score'] ||
+        selectedEmotionId != myReview['emotion_id'] ||
+        selectedMoodColorId != myReview['mood_color_id'];
+
+    if (!isDataChanged()) return;
+
+    final ok = await updateRating(
+      reviewId: myReview['id'],
+      beatScore: beatValue,
+      lyricScore: lyricValue,
+      moodScore: moodValue,
+      emotionId: selectedEmotionId!,
+      moodColorId: selectedMoodColorId!,
+    );
+    if (ok) {
+      _showSnack("Updated Shared Rating", Colors.green);
+      await _fetchDetailSong(isSilent: true);
     }
   }
 
   Future<void> _submitComment() async {
     if (_commentController.text.trim().isEmpty) return;
-
-    final response = await ApiClient.put('/review/${myReview['id']}', {
-      "comment": _commentController.text,
-    });
-
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Comment saved!")));
+    final ok = await submitComment(
+      reviewId: myReview['id'],
+      comment: _commentController.text,
+    );
+    if (ok) {
+      _showSnack("Comment posted", Colors.green);
       await _fetchDetailSong(isSilent: true);
       setState(() => openReview = false);
-    } else {
-      debugPrint("Error: ${response.body}");
     }
   }
 
   Future<void> _updateComment() async {
-    // ✅ เปลี่ยนมาใช้ ApiClient
-    final response = await ApiClient.put('/review/${myReview['id']}', {
-      "comment": _commentController.text,
-    });
-
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Comment updated!"),
-          backgroundColor: Colors.green,
-        ),
-      );
+    final ok = await submitComment(
+      reviewId: myReview['id'],
+      comment: _commentController.text,
+    );
+    if (ok) {
+      _showSnack("Comment updated", Colors.green);
       await _fetchDetailSong(isSilent: true);
       setState(() {
         openReview = false;
         _commentController.clear();
       });
-    } else {
-      debugPrint("Update failed: ${response.body}");
+    }
+  }
+
+  Future<void> _deleteComment() async {
+    final ok = await deleteComment(myReview['id']);
+    if (ok) {
+      _showSnack("Comment deleted", Colors.red);
+      setState(() {
+        myReview['comment'] = null;
+        hasMyComment = false;
+        openReview = false;
+        _commentController.clear();
+      });
+      await _fetchDetailSong(isSilent: true);
     }
   }
 
   Future<void> _toggleFavorite() async {
-    // ✅ เปลี่ยนมาใช้ ApiClient
-    final response = await ApiClient.post('/favorites/toggle', {
-      "song_id_reference": widget.id.toString(),
-      "source": "spotify",
-    });
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      setState(() => isfavorite = data['is_favorited']);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(data['message'])));
+    final result = await toggleFavorite(
+      songIdReference: widget.id,
+      source: "spotify",
+    );
+    if (result != null) {
+      setState(() => isfavorite = result.isFavorited);
+      _showSnack(result.message, Colors.green);
     }
   }
 
-  bool _isReviewComplete() {
-    return selectedEmotionId != null &&
-        selectedMoodColorId != null &&
-        beatValue! > 0 &&
-        lyricValue! > 0 &&
-        moodValue! > 0;
-  }
+  bool _isReviewComplete() =>
+      selectedEmotionId != null &&
+      selectedMoodColorId != null &&
+      beatValue > 0 &&
+      lyricValue > 0 &&
+      moodValue > 0;
 
   Future<void> createComment() async {
     if (_commentController.text.trim().isEmpty) return;
-
-    // ✅ เช็คก่อน comment ด้วย
-    if (myReview.isEmpty && !_isReviewComplete()) {
+    if (myReview.isEmpty) {
       _showIncompleteWarning();
       return;
     }
-
     try {
       if (myReview['comment'] == null) {
         await _submitComment();
       } else {
         await _updateComment();
       }
-
       setState(() {
         openReview = false;
         _commentController.clear();
@@ -392,7 +321,17 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
-  // เพิ่ม helper แสดง error ว่าขาดอะไร
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   void _showIncompleteWarning() {
     List<String> missing = [];
     if (selectedEmotionId == null) missing.add('Emotion');
@@ -400,7 +339,9 @@ class _MusicDetailState extends State<MusicDetail> {
     if (beatValue == 0) missing.add('Beat Score');
     if (lyricValue == 0) missing.add('Lyric Score');
     if (moodValue == 0) missing.add('Mood Score');
-
+    final message = missing.isEmpty
+        ? 'Please submit your rating first'
+        : 'Please complete: ${missing.join(', ')}';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -409,7 +350,7 @@ class _MusicDetailState extends State<MusicDetail> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Please complete: ${missing.join(', ')}',
+                message,
                 style: const TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.w600,
@@ -418,7 +359,7 @@ class _MusicDetailState extends State<MusicDetail> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFFFFD60A),
+        backgroundColor: const Color.fromARGB(255, 251, 244, 208),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -428,184 +369,129 @@ class _MusicDetailState extends State<MusicDetail> {
   @override
   Widget build(BuildContext context) {
     if (songDetail == null) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: Color(0xFF0e0e0e),
         body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0e0e0e),
       body: SafeArea(
         child: Stack(
           children: [
-            Stack(
-              children: [
-                if (songDetail!.dominantColor != null) ...{
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          hexToColor(songDetail!.dominantColor!),
-                          hexToColor(
-                            songDetail!.dominantColor!,
-                          ).withOpacity(0.7),
-                          hexToColor(
-                            songDetail!.dominantColor!,
-                          ).withOpacity(0.2),
-                          Color(0xFF0E0E0E),
-                        ],
-                        stops: const [0.2, 0.3, 0.7, 1.0],
-                      ),
+            if (songDetail!.dominantColor != null) ...[
+              // Container(
+              //   decoration: BoxDecoration(
+              //     gradient: LinearGradient(
+              //       begin: Alignment.topCenter,
+              //       end: Alignment.bottomCenter,
+              //       colors: [
+              //         hexToColor(songDetail!.dominantColor!),
+              //         hexToColor(songDetail!.dominantColor!).withOpacity(0.7),
+              //         hexToColor(songDetail!.dominantColor!).withOpacity(0.2),
+              //         const Color(0xFF0E0E0E),
+              //       ],
+              //       stops: const [0.2, 0.3, 0.7, 1.0],
+              //     ),
+              //   ),
+              // ),
+              // Container(
+              //   decoration: BoxDecoration(
+              //     gradient: LinearGradient(
+              //       begin: Alignment.topCenter,
+              //       end: Alignment.bottomCenter,
+              //       colors: [
+              //         Colors.black.withOpacity(0.0),
+              //         Colors.black.withOpacity(0.25),
+              //         Colors.black.withOpacity(0.55),
+              //       ],
+              //     ),
+              //   ),
+              // ),
+            ],
+            CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  floating: true,
+                  snap: true,
+                  backgroundColor: Colors.transparent,
+                  leading: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back_ios),
+                    color: Colors.white,
+                  ),
+                  title: Text(
+                    songDetail!.songName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.0),
-                          Colors.black.withOpacity(0.25),
-                          Colors.black.withOpacity(0.55),
-                        ],
+                  centerTitle: true,
+                  actions: [
+                    IconButton(
+                      onPressed: _toggleFavorite,
+                      icon: Icon(
+                        isfavorite ? Icons.favorite : Icons.favorite_border,
                       ),
-                    ),
-                  ),
-                },
-                CustomScrollView(
-                  slivers: [
-                    SliverAppBar(
-                      floating: true,
-                      snap: true,
-                      backgroundColor: Colors.transparent,
-                      leading: IconButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: Icon(Icons.arrow_back_ios),
-                        color: Colors.white,
-                      ),
-                      title: Text(
-                        songDetail!.songName,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      centerTitle: true,
-                      actions: [
-                        IconButton(
-                          onPressed: () {
-                            _toggleFavorite();
-                          },
-                          icon: isfavorite
-                              ? Icon(Icons.favorite)
-                              : Icon(Icons.favorite_border),
-                          color: isfavorite ? Color(0xFF1DB954) : Colors.white,
-                        ),
-                      ],
-                    ),
-
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            _buildMusicCover(),
-                            const SizedBox(height: 30),
-                            _buildEmotionsSection(),
-                            const SizedBox(height: 30),
-                            _buildRatingMusicDetail(),
-                            const SizedBox(height: 25),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                "Color Mood",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            SizedBox(
-                              height: 45,
-                              child: _loadingMoodColor
-                                  ? CircularProgressIndicator(
-                                      color: Colors.white,
-                                    )
-                                  : ListView(
-                                      scrollDirection: Axis.horizontal,
-                                      children: allMoodColor.map((mood) {
-                                        final color = hexToColor(mood.colorHex);
-                                        final count =
-                                            songDetail?.colorCounts[mood
-                                                .colorHex] ??
-                                            0;
-                                        return _buildColorOption(
-                                          mood.id,
-                                          color,
-                                          count: count,
-                                        );
-                                      }).toList(),
-                                    ),
-                            ),
-                            const SizedBox(height: 20),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _isSubmitting
-                                      ? Colors
-                                            .grey // ✅ สีเทาตอน loading
-                                      : const Color.fromARGB(
-                                          255,
-                                          254,
-                                          255,
-                                          255,
-                                        ),
-                                ),
-                                onPressed: _isSubmitting
-                                    ? null
-                                    : () {
-                                        // ✅ disable ตอน submitting
-                                        if (myReview.isEmpty) {
-                                          _submitSharedRating();
-                                        } else {
-                                          _updateSharedRating();
-                                        }
-                                      },
-                                child: _isSubmitting
-                                    ? const SizedBox(
-                                        // ✅ แสดง loading spinner
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.black,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Text(
-                                        "Shared Rating",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            _buildHeaderComment(),
-                            const SizedBox(height: 15),
-                            _buildAllComment(),
-                          ],
-                        ),
-                      ),
+                      color: isfavorite
+                          ? const Color.fromARGB(255, 87, 140, 233)
+                          : Colors.white,
                     ),
                   ],
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        _buildMusicCover(),
+                        const SizedBox(height: 30),
+                        _buildEmotionsSection(),
+                        const SizedBox(height: 30),
+                        _buildRatingSection(),
+                        const SizedBox(height: 25),
+                        _buildColorMoodSection(),
+                        const SizedBox(height: 20),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isSubmitting
+                                  ? Colors.grey
+                                  : Colors.white,
+                            ),
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => myReview.isEmpty
+                                      ? _submitSharedRating()
+                                      : _updateSharedRating(),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.black,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Shared Rating",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        _buildCommentSection(),
+                        const SizedBox(height: 60),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -615,190 +501,109 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
-  Widget _buildHeaderComment() {
+  // ─── WIDGETS ──────────────────────────────────────────────────────────────
+
+  Widget _buildMusicCover() {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-          children: [
-            Text(
-              "Comment",
-              style: TextStyle(
-                color: const Color.fromARGB(255, 200, 200, 200),
-                fontSize: 18,
+        Container(
+          width: 280,
+          height: 280,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[900],
+            boxShadow: [
+              BoxShadow(
+                color: selectedColor.withOpacity(0.5),
+                blurRadius: 40,
+                spreadRadius: 10,
               ),
-            ),
-            SizedBox(
-              width: 100,
-              height: 30,
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    openReview = !openReview;
-                    if (myReview['comment'] != null && openReview) {
-                      _commentController.text = myReview['comment'];
-                    } else {
-                      _commentController.clear();
-                    }
-                  });
-                },
-                style: ButtonStyle(
-                  maximumSize: WidgetStatePropertyAll(Size(80, 40)),
-                ),
-                child: Text(
-                  myReview['comment'] != null ? "Edit" : "Review",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    color: Colors.black,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              songDetail!.image ?? '',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: Colors.grey[800],
+                child: const Center(
+                  child: Icon(
+                    Icons.music_note,
+                    size: 80,
+                    color: Colors.white54,
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
-        if (openReview) ...{_buildNewComment()},
+        const SizedBox(height: 25),
+        Text(
+          songDetail!.songName,
+          style: const TextStyle(fontSize: 18, color: Colors.white),
+        ),
+        Text(
+          songDetail!.artistName,
+          style: const TextStyle(fontSize: 16, color: Colors.white24),
+        ),
       ],
     );
   }
 
-  Container _buildNewComment() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 25),
-      height: 300,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 19,
-                backgroundImage: NetworkImage(
-                  'https://cms.dmpcdn.com/dara/2020/12/14/e449fab0-3dc4-11eb-9b6d-3fdf37c2e48e_original.jpg',
-                ),
-              ),
-              SizedBox(width: 13),
-              Text(
-                myUserName,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Spacer(),
-              if (hasMyComment)
-                IconButton(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        backgroundColor: Color(0xFF2A2A2A),
-                        title: Text(
-                          "Delete Comment",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        content: Text(
-                          "Are you sure you want to delete this comment?",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(
-                              "Cancel",
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _updateComment();
-                                myComment = null;
-                                hasMyComment = false;
-                                openReview = false;
-                                _commentController.clear();
-                              });
-                              Navigator.pop(context);
-                            },
-                            child: Text(
-                              "Delete",
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  icon: Icon(Icons.delete_outline),
-                  color: Colors.red,
-                  iconSize: 22,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(),
-                ),
-            ],
-          ),
-          SizedBox(height: 20),
-          Expanded(
-            child: TextField(
-              controller: _commentController,
-              autofocus: true,
-              maxLines: 5,
-              style: TextStyle(color: Colors.white),
-              keyboardType: TextInputType.multiline,
-              decoration: InputDecoration(
-                hintText: "Enter you opinion",
-                hintStyle: TextStyle(color: Colors.white70),
-              ),
-            ),
-          ),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              ElevatedButton(
-                style: ButtonStyle(
-                  backgroundColor: WidgetStatePropertyAll(Colors.transparent),
-                ),
-                onPressed: () {
-                  setState(() {
-                    openReview = false;
-                    _commentController.clear();
-                  });
-                },
-                child: Text(
-                  "Cancel",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-              SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () {
-                  createComment();
-                },
-                child: Text(
-                  hasMyComment ? "Save" : "Submit",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+  Widget _buildEmotionsSection() {
+    if (_loadingEmotion)
+      return const CircularProgressIndicator(color: Colors.white);
+    final Map<String, IconData> emotionIcons = {
+      'Happy': Icons.sentiment_very_satisfied,
+      'Sad': Icons.sentiment_very_dissatisfied,
+      'In Love': Icons.favorite,
+      'Lonely': Icons.nightlight_round,
+      'Missing': Icons.psychology,
+      'Heartbroken': Icons.heart_broken,
+    };
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 10,
+      children: allEmotion.map((emotion) {
+        return EmotionChip(
+          emotion: emotion,
+          isSelected: selectedEmotion == emotion.name,
+          count: emotionCounts[emotion.name] ?? 0,
+          selectedColor: selectedColor,
+          onTap: () {
+            setState(() {
+              if (selectedEmotion == emotion.name) {
+                selectedEmotion = null;
+                emotionCounts[emotion.name] =
+                    (emotionCounts[emotion.name] ?? 1) - 1;
+              } else {
+                if (selectedEmotion != null) {
+                  emotionCounts[selectedEmotion!] =
+                      (emotionCounts[selectedEmotion!] ?? 1) - 1;
+                }
+                selectedEmotion = emotion.name;
+                selectedEmotionId = emotion.id;
+                emotionCounts[emotion.name] =
+                    (emotionCounts[emotion.name] ?? 0) + 1;
+              }
+            });
+          },
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildRatingMusicDetail() {
+  Widget _buildRatingSection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            "Music Detail",
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
+        const Text(
+          "Music Detail",
+          style: TextStyle(color: Colors.white, fontSize: 18),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -825,390 +630,463 @@ class _MusicDetailState extends State<MusicDetail> {
             ),
           ],
         ),
-        SizedBox(height: 10),
-        _buildEQSlider(
-          'Beat',
-          const Color.fromARGB(255, 104, 228, 106),
-          beatValue!,
-          (value) {
-            setState(() => beatValue = value);
-          },
+        const SizedBox(height: 10),
+        BuildSlider(
+          label:'Beat',
+          color:   const Color.fromARGB(255, 229, 206, 107),
+          value:  beatValue,
+          onChanged:  (v) => setState(() => beatValue = v),
         ),
-        _buildEQSlider(
-          'Lyric',
-          const Color.fromARGB(255, 166, 1, 1),
-          lyricValue!,
-          (value) {
-            setState(() => lyricValue = value);
-          },
+        BuildSlider(
+          label:  'Lyric',
+          color:  const Color.fromARGB(255, 236, 123, 123),
+          value:  lyricValue,
+          onChanged:  (v) => setState(() => lyricValue = v),
         ),
-        _buildEQSlider(
-          'Mood',
-          const Color.fromARGB(174, 109, 3, 162),
-          moodValue!,
-          (value) {
-            setState(() => moodValue = value);
-          },
+          BuildSlider(
+            label: 'Mood',
+            color:  Color.fromARGB(173, 150, 81, 184),
+            value: moodValue,
+            onChanged: (v) => setState(() => moodValue = v),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildColorMoodSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Color Mood",
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
+        const SizedBox(height: 15),
+        SizedBox(
+          height: 45,
+          child: _loadingMoodColor
+              ? const CircularProgressIndicator(color: Colors.white)
+              : ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: allMoodColor.map((mood) {
+                    final color = hexToColor(mood.colorHex);
+                    final count = songDetail?.colorCounts[mood.colorHex] ?? 0;
+                    final isSelected = selectedMoodColorId == mood.id;
+                    return GestureDetector(
+                      onTap: () => setState(() {
+                        selectedColor = color;
+                        selectedMoodColorId = mood.id;
+                      }),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(right: 10),
+                        width: isSelected ? 52 : 45,
+                        height: isSelected ? 52 : 45,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(
+                            isSelected ? 14 : 10,
+                          ),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.2),
+                            width: isSelected ? 3 : 1,
+                          ),
+                        ),
+                        child: count > 0
+                            ? Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '$count',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildAllComment() {
-    debugPrint(songDetail!.comment.toString());
-    if (songDetail!.comment.isEmpty) {
-      return Container(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Icon(Icons.chat_bubble_outline, color: Colors.white24, size: 48),
-            SizedBox(height: 12),
-            Text(
-              "No comments yet",
-              style: TextStyle(color: Colors.white38, fontSize: 16),
-            ),
-          ],
-        ),
+  
+  // ─── COMMENT SECTION ──────────────────────────────────────────────────────
+
+  Widget _buildCommentSection() {
+    final comments = songDetail!.comment;
+    final sortedComments = List.from(comments)
+      ..sort(
+        (a, b) => DateTime.parse(
+          b['created_at'],
+        ).compareTo(DateTime.parse(a['created_at'])),
       );
-    }
-    List sortedComments = List.from(songDetail!.comment);
-    sortedComments.sort((a, b) {
-      DateTime dateA = DateTime.parse(a['created_at']);
-      DateTime dateB = DateTime.parse(b['created_at']);
-      return dateB.compareTo(dateA);
-    });
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      separatorBuilder: (context, index) => SizedBox(height: 15),
-      itemCount: sortedComments.length,
-      itemBuilder: (context, index) {
-        final item = sortedComments[index] as Map<String, dynamic>;
-        final comment = Comment(
-          id: index,
-          ownerId: item['user_id'] ?? 0,
-          ownername: item['username'] ?? '',
-          text: item['comment'] ?? '',
-        );
-        return CommentCard(comment: comment);
-      },
-    );
-  }
-
-  Widget _buildColorOption(int id, Color color, {int count = 0}) {
-    final bool isSelected = selectedColor == color;
-    return GestureDetector(
-      onTap: () =>
-          setState(() => (selectedColor = color, selectedMoodColorId = id)),
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        margin: EdgeInsets.only(right: 10),
-        width: isSelected ? 52 : 45,
-        height: isSelected ? 52 : 45,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(isSelected ? 14 : 10),
-          border: isSelected
-              ? Border.all(color: Colors.white, width: 3)
-              : Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-        ),
-        child: count > 0
-            ? Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            : null,
-      ),
-    );
-  }
-
-  Widget _buildEQSlider(
-    String label,
-    Color color,
-    double value,
-    Function(double) onChanged,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ),
-          Expanded(
-            child: Stack(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
               children: [
-                // พื้นหลังสีเทา
-                Container(
-                  height: 21,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[700],
-                    borderRadius: BorderRadius.circular(15),
+                const Text(
+                  "Comments",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                // ส่วนที่เติมสีเขียว
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      width:
-                          (MediaQuery.of(context).size.width - 140) *
-                          (value / 5), // คำนวณความกว้างตาม value
-                      height: 21,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(15),
+                const SizedBox(width: 8),
+                if (comments.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${comments.length}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+              ],
+            ),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  openReview = !openReview;
+                  if (myReview['comment'] != null && openReview) {
+                    _commentController.text = myReview['comment'];
+                  } else {
+                    _commentController.clear();
+                  }
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                // Slider โปร่งใส
-                SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 21,
-                    activeTrackColor: Colors.transparent,
-                    inactiveTrackColor: Colors.transparent,
-                    thumbShape: RoundSliderThumbShape(
-                      enabledThumbRadius: 0,
-                    ), // ซ่อน thumb
-                    overlayShape: RoundSliderOverlayShape(overlayRadius: 0),
+                decoration: BoxDecoration(
+                  color: openReview
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      myReview['comment'] != null
+                          ? Icons.edit_rounded
+                          : Icons.add_rounded,
+                      size: 15,
+                      color: openReview ? Colors.black : Colors.white,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      myReview['comment'] != null ? "Edit" : "Write",
+                      style: TextStyle(
+                        color: openReview ? Colors.black : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (openReview) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _buildAvatar(myUserName, size: 18),
+                    const SizedBox(width: 10),
+                    Text(
+                      myUserName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (hasMyComment)
+                      GestureDetector(
+                        onTap: _showDeleteDialog,
+                        child: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _commentController,
+                  autofocus: true,
+                  maxLines: 4,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    height: 1.5,
                   ),
-                  child: Slider(
-                    value: value,
-                    min: 0,
-                    max: 5,
-                    onChanged: onChanged,
+                  decoration: InputDecoration(
+                    hintText: "Share your thoughts...",
+                    hintStyle: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => setState(() {
+                        openReview = false;
+                        _commentController.clear();
+                      }),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 9,
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: createComment,
+                      child: Text(
+                        hasMyComment ? "Save" : "Post",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        if (sortedComments.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: Colors.white.withOpacity(0.15),
+                    size: 40,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "No comments yet",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedComments.length,
+            separatorBuilder: (_, __) =>
+                Divider(color: Colors.white.withOpacity(0.06), height: 1),
+            itemBuilder: (_, i) {
+              final item = sortedComments[i] as Map<String, dynamic>;
+              return _buildCommentItem(
+                username: item['username'] ?? '',
+                text: item['comment'] ?? '',
+                createdAt: item['created_at'] ?? '',
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCommentItem({
+    required String username,
+    required String text,
+    required String createdAt,
+  }) {
+    String timeAgo = '';
+    try {
+      final dt = DateTime.parse(createdAt).toLocal();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1)
+        timeAgo = 'just now';
+      else if (diff.inMinutes < 60)
+        timeAgo = '${diff.inMinutes}m ago';
+      else if (diff.inHours < 24)
+        timeAgo = '${diff.inHours}h ago';
+      else
+        timeAgo = '${diff.inDays}d ago';
+    } catch (_) {}
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAvatar(username, size: 16),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      username,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeAgo,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.3),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 13,
+                    height: 1.5,
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(width: 10),
-          SizedBox(
-            width: 40,
-            child: Text(
-              value.toStringAsFixed(2),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          SizedBox(width: 10),
-          Container(child: Column(children: [Row()])),
         ],
       ),
     );
   }
 
-  Widget _buildEmotionsSection() {
-    if (_loadingEmotion) {
-      return CircularProgressIndicator(color: Colors.white);
-    }
-
-    final Map<String, IconData> emotionIcons = {
-      'Happy': Icons.sentiment_very_satisfied,
-      'Sad': Icons.sentiment_very_dissatisfied,
-      'In Love': Icons.favorite,
-      'Lonely': Icons.nightlight_round,
-      'Missing': Icons.psychology,
-      'Heartbroken': Icons.heart_broken,
-    };
-
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 20,
-      children: allEmotion.map((emotion) {
-        return _buildEmotionIcon(
-          emotion.id,
-          emotionIcons[emotion.name]!,
-          emotion.name,
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildEmotionIcon(int id, IconData icon, String emotion) {
-    bool isSelected = selectedEmotion == emotion;
-    int count = emotionCounts[emotion] ?? 0;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isSelected) {
-            selectedEmotion = null;
-            emotionCounts[emotion] = count - 1;
-          } else {
-            if (selectedEmotion != null) {
-              emotionCounts[selectedEmotion!] =
-                  (emotionCounts[selectedEmotion!] ?? 1) - 1;
-            }
-            selectedEmotion = emotion;
-            selectedEmotionId = id;
-            emotionCounts[emotion] = count + 1;
-          }
-        });
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: isSelected
-              ? selectedColor.withOpacity(0.9)
-              : Color(0xFF2A2A2A),
-          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-        ),
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? Color.fromRGBO(255, 174, 174, 1)
-                  : Colors.white.withOpacity(0.6),
-              size: 17,
-            ),
-            SizedBox(width: 6),
-            Text(
-              emotion,
-              style: TextStyle(
-                fontSize: 14,
-                color: isSelected
-                    ? Color.fromRGBO(255, 174, 174, 1)
-                    : Colors.white.withOpacity(0.8),
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: 0.3,
-              ),
-            ),
-            SizedBox(width: 6),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Color(0xFF1A1A1A).withOpacity(0.3)
-                    : Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isSelected
-                      ? Color.fromRGBO(255, 174, 174, 1)
-                      : Colors.white.withOpacity(0.5),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
+  Widget _buildAvatar(String name, {required double size}) {
+    return CircleAvatar(
+      radius: size,
+      backgroundColor: selectedColor.withOpacity(0.3),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: selectedColor,
+          fontWeight: FontWeight.w700,
+          fontSize: size * 0.8,
         ),
       ),
     );
   }
 
-  Column _buildMusicCover() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.grey[900],
-                boxShadow: [
-                  BoxShadow(
-                    color: selectedColor.withValues(alpha: 0.5),
-                    blurRadius: 40,
-                    spreadRadius: 10,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  songDetail!.image ?? '',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[800],
-                      child: const Center(
-                        child: Icon(
-                          Icons.music_note,
-                          size: 80,
-                          color: Colors.white54,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "Delete comment?",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          "This cannot be undone.",
+          style: TextStyle(color: Colors.white54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white54),
             ),
-          ],
-        ),
-        SizedBox(height: 25),
-        Text(
-          songDetail!.songName,
-          style: TextStyle(fontSize: 18, color: Colors.white),
-        ),
-        Text(
-          songDetail!.artistName,
-          style: TextStyle(fontSize: 18, color: Colors.white24),
-        ),
-      ],
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteComment();
+            },
+            child: const Text(
+              "Delete",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
     );
   }
-
-  // Widget _buildTopBar(BuildContext context) {
-  //   return Row(
-  //     children: [
-  //       IconButton(
-  //         onPressed: () {
-  //           Navigator.pop(context);
-  //         },
-  //         icon: Icon(Icons.arrow_back_ios),
-  //         color: Colors.white,
-  //       ),
-  //       Spacer(),
-  //       Text(
-  //         songDetail!.songName,
-  //         style: TextStyle(
-  //           color: Colors.white,
-  //           fontSize: 18,
-  //           fontWeight: FontWeight.w500,
-  //         ),
-  //       ),
-  //       Spacer(),
-  //       IconButton(
-  //         onPressed: () {
-  //           setState(() {
-  //             isfavorite = !isfavorite;
-  //           });
-  //         },
-  //         icon: isfavorite ? Icon(Icons.favorite) : Icon(Icons.favorite_border),
-  //         color: isfavorite ? Colors.red : Colors.white,
-  //       ),
-  //     ],
-  //   );
-  // }
 }

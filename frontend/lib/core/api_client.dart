@@ -19,7 +19,6 @@ class ApiClient {
     });
   }
 
-  // POST
   static Future<http.Response> post(String path, Map<String, dynamic> body) async {
     return await _request(() async {
       final token = await _getAccessToken();
@@ -31,7 +30,7 @@ class ApiClient {
     });
   }
 
-  // PUT
+
   static Future<http.Response> put(String path, Map<String, dynamic> body) async {
     return await _request(() async {
       final token = await _getAccessToken();
@@ -43,7 +42,7 @@ class ApiClient {
     });
   }
 
-  // DELETE
+
   static Future<http.Response> delete(String path) async {
     return await _request(() async {
       final token = await _getAccessToken();
@@ -54,7 +53,6 @@ class ApiClient {
     });
   }
 
-  // ============ Private ============
 
   static Map<String, String> _headers(String? token) => {
     'Content-Type': 'application/json',
@@ -79,7 +77,7 @@ class ApiClient {
     return response;
   }
 
-  // ขอ access token ใหม่จาก refresh token
+ 
   static Future<bool> _tryRefresh() async {
     try {
       final prefs = await SharedPreferences.getInstance();
