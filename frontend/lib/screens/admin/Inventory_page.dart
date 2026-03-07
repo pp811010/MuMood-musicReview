@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import 'createmusic_page.dart';
+import 'edit_song_page.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
@@ -31,7 +32,7 @@ class _InventoryPageState extends State<InventoryPage> {
   Future<void> loadSongsFromDb() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('$baseUrl/spotify/all-songs'));
+      final response = await http.get(Uri.parse('$baseUrl/songs/db/all-songs'));
       if (response.statusCode == 200) {
         setState(() {
           dbSongs = json.decode(response.body)['results'];
@@ -82,15 +83,61 @@ class _InventoryPageState extends State<InventoryPage> {
     }
   }
 
-  void _togglePreview(String? url) async {
-    if (url == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No preview available")));
-      return;
+  Future<void> _deleteSongQuickly(int songId) async {
+    bool confirm = await _showConfirmDialog(
+      "Delete Song",
+      "Are you sure you want to remove this song?",
+    );
+    if (!confirm) return;
+
+    setState(() => isLoading = true);
+    try {
+      final response = await http.delete(Uri.parse('$baseUrl/songs/$songId'));
+      if (response.statusCode == 200) {
+        loadSongsFromDb(); // รีโหลดรายการเพลงใหม่
+        _showSnackBar("Song deleted", Colors.green);
+      }
+    } catch (e) {
+      _showSnackBar("Error deleting song", Colors.red);
+    } finally {
+      setState(() => isLoading = false);
     }
-    await _audioPlayer.play(UrlSource(url));
   }
+
+  Future<bool> _showConfirmDialog(String title, String message) async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: Text(title, style: const TextStyle(color: Colors.white)),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel", style: TextStyle(color: Colors.white)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _showSnackBar(String msg, Color color) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+  }
+
 
   @override
   void dispose() {
@@ -206,7 +253,18 @@ class _InventoryPageState extends State<InventoryPage> {
         final song = displaySongs[songIndex];
 
         return GestureDetector(
-          onTap: () => _togglePreview(song['preview_url']),
+          onTap: () async {
+            bool? updated = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditSongPage(songData: song),
+              ),
+            );
+
+            if (updated == true) {
+              loadSongsFromDb();
+            }
+          },
           child: _buildMusicCard(song),
         );
       },
@@ -253,7 +311,6 @@ class _InventoryPageState extends State<InventoryPage> {
   Widget _buildMusicCard(Map<String, dynamic> song) {
     String rawImageUrl = song['image'] ?? "";
     String finalImageUrl = "";
-
     if (rawImageUrl.startsWith("http")) {
       finalImageUrl = rawImageUrl;
     } else if (rawImageUrl.startsWith("/static")) {
@@ -262,67 +319,66 @@ class _InventoryPageState extends State<InventoryPage> {
       finalImageUrl = "$baseUrl/$rawImageUrl";
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
-              ),
-              child: Image.network(
-                finalImageUrl.isNotEmpty
-                    ? finalImageUrl
-                    : "https://via.placeholder.com/150",
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Icon(
-                    Icons.music_note,
-                    size: 50,
-                    color: Colors.white24,
-                  ),
-                ),
-              ),
-            ),
+    return Stack( // ใช้ Stack เพื่อวางปุ่มลบทับบนรูป
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(15),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song['name'] ?? "Unknown",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  song['artist'] ?? "Unknown Artist",
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
-                ),
-                if (song['preview_url'] != null)
-                  const Align(
-                    alignment: Alignment.bottomRight,
-                    child: Icon(
-                      Icons.play_circle_fill,
-                      color: Colors.green,
-                      size: 24,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                  child: Image.network(
+                    finalImageUrl.isNotEmpty ? finalImageUrl : "https://via.placeholder.com/150",
+                    fit: BoxFit.cover, width: double.infinity,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.music_note, size: 50, color: Colors.white24),
                     ),
                   ),
-              ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song['name'] ?? "Unknown",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      song['artist'] ?? "Unknown Artist",
+                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        if (song['is_custom'] == true)
+          Positioned(
+            top: 5,
+            right: 5,
+            child: GestureDetector(
+              onTap: () => _deleteSongQuickly(song['id']),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

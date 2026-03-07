@@ -62,7 +62,7 @@ class ProfilePage extends StatelessWidget {
                 border: Border.all(color: Colors.white10, width: 2),
                 image: const DecorationImage(
                   image: NetworkImage(
-                    "https://www.w3schools.com/howto/img_avatar2.png", // รูปตัวอย่าง
+                    "https://www.shutterstock.com/image-vector/programmer-computer-expert-black-linear-600nw-2033137370.jpg", // รูปตัวอย่าง
                   ),
                   fit: BoxFit.cover,
                 ),
