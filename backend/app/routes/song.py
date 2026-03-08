@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, or_
-from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 import asyncio
 import os
+import uuid
+import aiofiles
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy import select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Favorite, Review, Song, User
 from app.schemas.song import SongCreate, SongResponse, SongUpdate
 from app.database import SessionDep
@@ -43,7 +45,7 @@ async def search_songs(q: str, db: SessionDep):
             "artist": s.artist_name,
             "image": img,
             "source": "db",
-            "preview_url": s.preview_url,
+            "link_url": s.link_url,
             "is_custom": s.is_custom_added
         })
 
@@ -62,7 +64,7 @@ async def search_songs(q: str, db: SessionDep):
             "id": item["id"],
             "name": item["name"],
             "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
-            "preview_url": item.get("preview_url"),
+            "link_url": item.get("link_url"),
             "image": item["album"]["images"][0]["url"] if item.get("album") else None,
             "source": "spotify",
             "is_custom": False
@@ -74,11 +76,6 @@ async def search_songs(q: str, db: SessionDep):
 async def create_song(song: SongCreate, db: SessionDep):
     song_data = song.model_dump()
     
-    if not song_data.get("preview_url"):
-        song_data["preview_url"] = await fetch_deezer_preview(
-            song_name=song_data.get("song_name", ""),
-            artist_name=song_data.get("artist_name", "")
-        )
         
     db_song = Song(**song_data)
     db.add(db_song)
@@ -104,7 +101,7 @@ async def get_all_songs(db: SessionDep):
             "name": s.song_name,
             "artist": s.artist_name,
             "image": img_url,
-            "preview_url": s.preview_url,
+            "link_url": s.link_url,
             "is_custom": s.is_custom_added
         })
     return {"results": results}
@@ -229,8 +226,18 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
             "preview_url": preview_url # ลบ preview_url อันเก่าออก ใช้ตัวที่ได้จาก Deezer ตัวเดียว
         }
 
-@router.patch("/{song_id}", response_model=SongResponse)
-async def update_song(song_id: int, song_update: SongUpdate, db: SessionDep):
+@router.patch("/{song_id}")
+async def update_song(
+    song_id: int,
+    db: SessionDep,
+    song_name: str = Form(None),
+    artist_name: str = Form(None),
+    album_name: str = Form(None),
+    category: str = Form(None),
+    link_url: str = Form(None),
+    file: UploadFile = File(None)
+):
+    # 1. ค้นหาข้อมูลเพลงเดิมจาก Database
     stmt = select(Song).where(Song.id == song_id)
     result = await db.execute(stmt)
     db_song = result.scalar_one_or_none()
@@ -238,12 +245,42 @@ async def update_song(song_id: int, song_update: SongUpdate, db: SessionDep):
     if not db_song:
         raise HTTPException(status_code=404, detail="Song not found")
 
-    for key, value in song_update.model_dump(exclude_unset=True).items():
-        setattr(db_song, key, value)
+    # 2. อัปเดตข้อมูล Text (เฉพาะที่มีการส่งค่ามา)
+    if song_name is not None: db_song.song_name = song_name
+    if artist_name is not None: db_song.artist_name = artist_name
+    if album_name is not None: db_song.album_name = album_name
+    if category is not None: db_song.category = category
+    if link_url is not None: db_song.link_url = link_url
+
+    # 3. จัดการรูปภาพหน้าปกใหม่ (ถ้ามีการอัปโหลดไฟล์มา)
+    if file:
+        #  ลบไฟล์ภาพเก่าออกจาก Disk หากเป็นไฟล์ที่เก็บในเครื่อง
+        if db_song.song_cover_url and db_song.song_cover_url.startswith("/static"):
+            old_path = db_song.song_cover_url.lstrip("/")
+            try:
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            except Exception as e:
+                print(f"Error removing old file: {e}")
+
+        # บันทึกไฟล์ภาพใหม่ลงในโฟลเดอร์ static
+        upload_dir = "static/song_covers"
+        os.makedirs(upload_dir, exist_ok=True)
+        unique_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(upload_dir, unique_filename)
         
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
+        
+        # อัปเดต URL รูปภาพใน Database
+        db_song.song_cover_url = f"/static/song_covers/{unique_filename}"
+
+    # 4. บันทึกการเปลี่ยนแปลงลง Database
     await db.commit()
     await db.refresh(db_song)
-    return db_song
+    
+    return {"status": "success", "data": db_song}
 
 @router.delete("/{song_id}")
 async def delete_song(song_id: int, db: SessionDep):

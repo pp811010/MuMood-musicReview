@@ -24,10 +24,10 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   final TextEditingController _songNameController = TextEditingController();
   final TextEditingController _artistNameController = TextEditingController();
   final TextEditingController _albumNameController = TextEditingController();
+  final TextEditingController _linkController = TextEditingController();
 
   String? _selectedCategory;
   bool _isUploading = false;
-  bool _isFromSpotify = false;
   String? _snapshotSpotifySong;
   String? _snapshotSpotifyArtist;
 
@@ -65,6 +65,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
     _songNameController.dispose();
     _artistNameController.dispose();
     _albumNameController.dispose();
+    _linkController.dispose();
     super.dispose();
   }
 
@@ -116,19 +117,20 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   Future<void> _createSong() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ✅ ป้องกันการโกง: เทียบเนื้อหาจริง (Case-Insensitive) กับค่า Snapshot ดั้งเดิม
+    // ป้องกันการโกง: เทียบเนื้อหาจริง (Case-Insensitive) กับค่า Snapshot ดั้งเดิม
     // ไม่ว่าผู้ใช้จะแก้แล้วแก้กลับ หรือเปลี่ยนตัวพิมพ์ ระบบจะตรวจเจอเสมอ
     final currentSong = _songNameController.text.trim().toLowerCase();
     final currentArtist = _artistNameController.text.trim().toLowerCase();
 
-    bool isMatchSpotify = _snapshotSpotifySong != null && 
+    bool isMatchSpotify =
+        _snapshotSpotifySong != null &&
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
     if (isMatchSpotify) {
       _showSnackBar(
-        "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องเพิ่มแบบ Custom", 
-        Colors.orange
+        "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องเพิ่มแบบ Custom",
+        Colors.orange,
       );
       return;
     }
@@ -152,8 +154,11 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       request.fields['category'] = _selectedCategory!;
       request.fields['artist_name'] = _artistNameController.text.trim();
       request.fields['album_name'] = _albumNameController.text.trim();
+      request.fields['link_url'] = _linkController.text.trim();
 
-      request.files.add(await http.MultipartFile.fromPath('file', _imageFile!.path));
+      request.files.add(
+        await http.MultipartFile.fromPath('file', _imageFile!.path),
+      );
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
@@ -164,7 +169,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
           if (mounted) Navigator.pop(context, true);
         });
       } else {
-        // ✅ ระบบตรวจสอบด่านสุดท้ายจาก Database
+        // ระบบตรวจสอบด่านสุดท้ายจาก Database
         var errorMsg = json.decode(response.body)['detail'] ?? "Upload failed";
         _showSnackBar("Error: $errorMsg", Colors.red);
       }
@@ -242,6 +247,14 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
                 isOptional: true,
               ),
 
+              const SizedBox(height: 20),
+              _buildLabel("Song Link (Spotify/YouTube URL)"),
+              _buildTextField(
+                _linkController,
+                "Enter link URL",
+                focusNode: FocusNode(),
+              ),
+
               const SizedBox(height: 40),
               _buildSubmitButton(),
             ],
@@ -253,18 +266,23 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
 
   // --- UI Components ---
 
-  Widget _buildAutocompleteField(TextEditingController controller, String hint, String type, FocusNode focusNode, {bool isOptional = false}) {
+  Widget _buildAutocompleteField(
+    TextEditingController controller,
+    String hint,
+    String type,
+    FocusNode focusNode, {
+    bool isOptional = false,
+  }) {
     return Column(
       children: [
         _buildTextField(
-          controller, 
-          hint, 
+          controller,
+          hint,
           focusNode: focusNode,
           isOptional: isOptional,
           onChanged: (val) {
-            // เราไม่ลบ Snapshot ที่นี่ เพื่อให้ _createSong ตรวจสอบความถูกต้องของเนื้อหาได้เสมอ
             _fetchMetadataSuggestions(val, type);
-          }
+          },
         ),
         if (focusNode.hasFocus) _buildSuggestionsContainer(type),
       ],
@@ -273,9 +291,12 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
 
   Widget _buildSuggestionsContainer(String type) {
     List<dynamic> suggestions;
-    if (type == 'song') suggestions = _songObjects;
-    else if (type == 'artist') suggestions = _suggestedArtists;
-    else suggestions = _suggestedAlbums;
+    if (type == 'song')
+      suggestions = _songObjects;
+    else if (type == 'artist')
+      suggestions = _suggestedArtists;
+    else
+      suggestions = _suggestedAlbums;
 
     if (suggestions.isEmpty) return const SizedBox.shrink();
 
@@ -283,26 +304,31 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       constraints: const BoxConstraints(maxHeight: 200),
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C), 
+        color: const Color(0xFF2C2C2C),
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10)]
+        boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10)],
       ),
       child: ListView.builder(
         shrinkWrap: true,
         itemCount: suggestions.length,
         itemBuilder: (context, index) {
           final item = suggestions[index];
-          final String displayLabel = type == 'song' ? item['display'] : item.toString();
-          
+          final String displayLabel = type == 'song'
+              ? item['display']
+              : item.toString();
+
           return ListTile(
-            title: Text(displayLabel, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            title: Text(
+              displayLabel,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
             onTap: () {
               setState(() {
                 if (type == 'song') {
                   _songNameController.text = item['name'];
                   _artistNameController.text = item['artist'];
                   _albumNameController.text = item['album'];
-                  
+
                   _snapshotSpotifySong = item['name'];
                   _snapshotSpotifyArtist = item['artist'];
                 } else if (type == 'artist') {
