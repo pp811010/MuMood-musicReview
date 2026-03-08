@@ -227,7 +227,7 @@ class _MusicDetailState extends State<MusicDetail> {
       );
       if (ok) {
         _showSnack("Rating submitted", Colors.green);
-        setState(() => _isEditingReview = false); // lock หลัง submit
+        setState(() => _isEditingReview = false);
         await _fetchDetailSong(isSilent: true);
       } else {
         _showSnack("Something went wrong", Colors.red);
@@ -261,19 +261,6 @@ class _MusicDetailState extends State<MusicDetail> {
       await _fetchDetailSong(isSilent: true);
     }
   }
-
-  // Future<void> _submitComment() async {
-  //   if (_commentController.text.trim().isEmpty) return;
-  //   final ok = await submitComment(
-  //     reviewId: myReview['id'],
-  //     comment: _commentController.text,
-  //   );
-  //   if (ok) {
-  //     _showSnack("Comment posted", Colors.green);
-  //     await _fetchDetailSong(isSilent: true);
-  //     setState(() => openReview = false);
-  //   }
-  // }
 
   Future<void> _updateComment() async {
     final ok = await editComment(
@@ -754,23 +741,23 @@ class _MusicDetailState extends State<MusicDetail> {
                 textAlign: TextAlign.center,
               ),
             ),
-            if (songDetail!.linkurl != null) ...[
-              const SizedBox(width: 6),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () async {
-                  final uri = Uri.parse(songDetail!.linkurl!);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: const Icon(
-                  Icons.open_in_new_rounded,
-                  color: Colors.white38,
-                  size: 18,
-                ),
-              ),
-            ],
+            // if (songDetail!.linkurl != null) ...[
+            //   const SizedBox(width: 6),
+            //   InkWell(
+            //     borderRadius: BorderRadius.circular(20),
+            //     onTap: () async {
+            //       final uri = Uri.parse(songDetail!.linkurl!);
+            //       if (await canLaunchUrl(uri)) {
+            //         await launchUrl(uri, mode: LaunchMode.externalApplication);
+            //       }
+            //     },
+            //     child: const Icon(
+            //       Icons.open_in_new_rounded,
+            //       color: Colors.white38,
+            //       size: 18,
+            //     ),
+            //   ),
+            // ],
           ],
         ),
 

@@ -41,7 +41,7 @@ class BuildSlider extends StatelessWidget {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                 overlayColor: color.withOpacity(0.2),
               ),
-              child: Slider(value: value, min: 0, max: 5, onChanged: onChanged),
+              child: Slider(value: value, min: 0, max: 5, onChanged: onChanged, divisions: 5,),
             ),
           ),
           SizedBox(
