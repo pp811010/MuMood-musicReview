@@ -25,7 +25,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-
 class SplashDecider extends StatefulWidget {
   const SplashDecider({super.key});
 

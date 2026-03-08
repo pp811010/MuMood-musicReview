@@ -10,18 +10,17 @@ from app.database import SessionDep
 from app.services.spotify import get_spotify_token
 from app.core.security import get_current_user
 from sqlalchemy.orm import selectinload
+from app.routes.deeza import fetch_deezer_preview
 
 router = APIRouter(prefix="/songs", tags=["Songs"])
 
 BASE_URL = "http://10.0.2.2:8000"
 
-BASE_URL = "http://10.0.2.2:8000"
 
 @router.get("/search")
 async def search_songs(q: str, db: SessionDep):
     token = await get_spotify_token()
 
-    # 1. ค้นหาใน DB ของเราก่อน
     stmt = select(Song).where(
         or_(
             Song.song_name.ilike(f"%{q}%"), 
@@ -31,7 +30,6 @@ async def search_songs(q: str, db: SessionDep):
     result = await db.execute(stmt)
     db_songs = result.scalars().all()
     
-    # สร้าง Map เพื่อเช็คเพลงซ้ำจาก Spotify ID
     db_spotify_ids = {s.spotify_id for s in db_songs if s.spotify_id}
 
     results = []
@@ -49,7 +47,6 @@ async def search_songs(q: str, db: SessionDep):
             "is_custom": s.is_custom_added
         })
 
-    # ค้นหาใน Spotify
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://api.spotify.com/v1/search",
@@ -58,11 +55,9 @@ async def search_songs(q: str, db: SessionDep):
         )
         spotify_items = resp.json().get("tracks", {}).get("items", [])
 
-    # รวมผลลัพธ์ (Merge & Deduplicate)
-    final_results = db_results.copy()
     for item in spotify_items:
         if item["id"] in db_spotify_ids:
-            continue # ข้ามถ้ามีในคลังเราแล้ว
+            continue 
         results.append({
             "id": item["id"],
             "name": item["name"],
@@ -75,10 +70,48 @@ async def search_songs(q: str, db: SessionDep):
 
     return {"results": results}
 
+@router.post("/", response_model=SongResponse)
+async def create_song(song: SongCreate, db: SessionDep):
+    song_data = song.model_dump()
+    
+    if not song_data.get("preview_url"):
+        song_data["preview_url"] = await fetch_deezer_preview(
+            song_name=song_data.get("song_name", ""),
+            artist_name=song_data.get("artist_name", "")
+        )
+        
+    db_song = Song(**song_data)
+    db.add(db_song)
+    await db.commit()
+    await db.refresh(db_song)
+    return db_song
 
+
+@router.get("/db/all-songs")
+async def get_all_songs(db: SessionDep):
+    result = await db.execute(select(Song).order_by(Song.id.desc()))
+    songs = result.scalars().all()
+
+    results = []
+    for s in songs:
+        img_url = s.song_cover_url
+        if img_url and img_url.startswith("/static"):
+            img_url = f"{BASE_URL}{img_url}"
+            
+        results.append({
+            "id": s.id,
+            "spotify_id": s.spotify_id,
+            "name": s.song_name,
+            "artist": s.artist_name,
+            "image": img_url,
+            "preview_url": s.preview_url,
+            "is_custom": s.is_custom_added
+        })
+    return {"results": results}
 
 @router.get("/detail/{identifier}", response_model=SongResponse)
 async def get_song_detail(identifier: str, db: SessionDep, current_user: User = Depends(get_current_user)):
+
     stmt = (
         select(Song).where(Song.id == int(identifier))
         if identifier.isdigit()
@@ -109,13 +142,11 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
         avg_mood = sum(mood_scores) / len(mood_scores) if mood_scores else 0.0
 
         emotion_counts = {}
+        color_counts = {}
         for r in reviews:
             if r.emotion:
                 name = r.emotion.name
                 emotion_counts[name] = emotion_counts.get(name, 0) + 1
-
-        color_counts = {}
-        for r in reviews:
             if r.mood_color:
                 hex_color = r.mood_color.color_hex
                 color_counts[hex_color] = color_counts.get(hex_color, 0) + 1
@@ -128,6 +159,9 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
         is_favorite = fav_result.scalar_one_or_none() is not None
 
         dominant_color = max(color_counts, key=color_counts.get) if color_counts else None
+
+        preview_url = await fetch_deezer_preview(db_song.song_name, db_song.artist_name)
+        
 
         return {
             "id": str(db_song.id),
@@ -142,7 +176,6 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
                 "lyric": round(avg_lyric, 2),
                 "mood": round(avg_mood, 2),
             },
-            "preview_url": db_song.preview_url,
             "emotion_counts": emotion_counts,
             "color_counts": color_counts,
             "dominant_color": dominant_color,
@@ -157,8 +190,11 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
                 if r.comment and r.comment.strip() != ''
             ],
             "source": "db",
+            "link_url": db_song.link_url,
+            "preview_url": preview_url 
         }
     
+
     if identifier.isdigit():
         raise HTTPException(status_code=404, detail="Song not found in database")
 
@@ -172,31 +208,26 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
             raise HTTPException(status_code=404, detail="Song not found on Spotify")
         
         data = response.json()
+
+        preview_url = await fetch_deezer_preview(data["name"], data["artists"][0]["name"])
+        
         return {
             "id": identifier,
-            "song_name": data["name"],
-            "artist_name": data["artists"][0]["name"],
+            "song_name": data.get("name"),
+            "artist_name": data.get("artists", [{}])[0].get("name"),
             "spotify_id": identifier,
             "is_custom_added": False,
             "favorite": False,
             "avg_scores": {"beat": 0.0, "lyric": 0.0, "mood": 0.0},
-            "song_cover_url": data["album"]["images"][0]["url"] if data.get("album") else None,
+            "song_cover_url": data.get("album", {}).get("images", [{}])[0].get("url") if data.get("album", {}).get("images") else None,
             "emotion_counts": {},
-            "preview_url": data.get("preview_url"), 
             "color_counts": {},
             "dominant_color": None,
             "comment": [],
             "source": "spotify",
+            "link_url": data.get("external_urls", {}).get("spotify"), # แก้ไข Path ไม่ให้แอปพังแล้ว
+            "preview_url": preview_url # ลบ preview_url อันเก่าออก ใช้ตัวที่ได้จาก Deezer ตัวเดียว
         }
-
-
-@router.post("/", response_model=SongResponse)
-async def create_song(song: SongCreate, db: SessionDep):
-    db_song = Song(**song.model_dump())
-    db.add(db_song)
-    await db.commit()
-    await db.refresh(db_song)
-    return db_song
 
 @router.patch("/{song_id}", response_model=SongResponse)
 async def update_song(song_id: int, song_update: SongUpdate, db: SessionDep):

@@ -6,12 +6,17 @@ class SongCard extends StatelessWidget {
   final Music music;
   final double? width;
 
-  const SongCard({super.key, required this.music, this.width});
-
+  SongCard({super.key, required this.music, this.width});
 
   @override
   Widget build(BuildContext context) {
-    debugPrint(music.toString());
+
+    final imageUrl = music.image.startsWith('/') 
+      ? 'http://10.0.2.2:8000${music.image}' 
+      : music.image;
+    
+    debugPrint(imageUrl);
+
     return SizedBox(
       width: width,
       child: InkWell(
@@ -37,6 +42,7 @@ class SongCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            
             Text(
               music.title,
               style: const TextStyle(

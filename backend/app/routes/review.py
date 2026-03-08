@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.database import SessionDep
 from app.schemas.review import ReviewRequest, ReviewResponse, ReviewUpdate
@@ -82,8 +82,10 @@ async def create_review(
                 spotify_id=review.song_id_reference,
                 song_name=spotify_data["name"],
                 artist_name=spotify_data["artist"],
+                album_name=spotify_data["album"],
                 song_cover_url=spotify_data["cover"],
                 preview_url=spotify_data["preview_url"],
+                link_url = spotify_data["link_url"],
                 is_custom_added=False
             )
             db.add(song)
@@ -136,8 +138,10 @@ async def get_my_reviews(
 async def resolve_song_id(db: SessionDep, identifier: str) -> int:
     if identifier.isdigit():
         return int(identifier)
-    
-    song = await db.scalar(select(Song).where(Song.spotify_id == identifier))
+    song = await db.scalar(select(Song).where( or_(
+            Song.spotify_id == identifier,
+            Song.id == int(identifier) if identifier.isdigit() else False
+        )))
     if not song:
         raise HTTPException(status_code=404, detail="ไม่พบข้อมูลเพลงนี้ในระบบ")
     return song.id
@@ -148,7 +152,7 @@ async def get_review_by_song(
     db: SessionDep,
     current_user: User = Depends(get_current_active_user)
 ):
-    """ดึงรีวิวของเพลงนั้นๆ โดยรองรับทั้ง ID และ Spotify ID"""
+
     song_id = await resolve_song_id(db, identifier)
     
     query = select(Review).where(
