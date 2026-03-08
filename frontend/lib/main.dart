@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
       title: 'MuMood',
       theme: ThemeData(),
       navigatorKey: navigatorKey, 
-      home: const SplashDecider(), // ✅ เช็ค token ก่อนเข้าแอป
+      home: const SplashDecider(),
     );
   }
 }
