@@ -7,28 +7,60 @@ from app.database import get_db
 from app.models import Song
 import os
 import uuid
-import aiofiles # ใช้สำหรับ Async File I/O
+import aiofiles
+import httpx
+from app.services.spotify import get_spotify_token
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 # Endpoint สำหรับ Search ศิลปิน/อัลบั้ม (Autocomplete)
 @router.get("/search-metadata")
 async def search_metadata(query: str, db: AsyncSession = Depends(get_db)):
-    """ค้นหาศิลปินและอัลบั้มในระบบแบบ Autocomplete"""
+    """ค้นหาข้อมูลเพลง ศิลปิน และอัลบั้ม ทั้งจาก DB และ Spotify แบบ Autocomplete สำหรับ suggesstion"""
     
-    # 1. ค้นหาชื่อศิลปินที่ไม่ซ้ำกัน
-    artist_stmt = select(Song.artist_name).where(Song.artist_name.ilike(f"%{query}%")).distinct()
-    artist_result = await db.execute(artist_stmt)
-    artists = artist_result.scalars().all()
-    
-    # 2. ค้นหาชื่ออัลบั้มที่ไม่ซ้ำกัน
-    album_stmt = select(Song.album_name).where(Song.album_name.ilike(f"%{query}%")).distinct()
-    album_result = await db.execute(album_stmt)
-    albums = album_result.scalars().all()
+
+    internal_stmt = select(Song).where(
+        or_(
+            Song.song_name.ilike(f"%{query}%"),
+            Song.artist_name.ilike(f"%{query}%")
+        )
+    ).limit(5)
+    internal_result = await db.execute(internal_stmt)
+    internal_songs = internal_result.scalars().all()
+
+    spotify_songs = []
+    token = await get_spotify_token()
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://api.spotify.com/v1/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"q": query, "type": "track", "limit": 10}
+        )
+        if resp.status_code == 200:
+            spotify_items = resp.json().get("tracks", {}).get("items", [])
+            for item in spotify_items:
+                spotify_songs.append({
+                    "name": item["name"],
+                    "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
+                    "album": item["album"]["name"] if item.get("album") else "",
+                    "display": f"{item['name']} - {item['artists'][0]['name']} (Spotify)"
+                })
+
+    formatted_internal = [
+        {
+            "name": s.song_name,
+            "artist": s.artist_name,
+            "album": s.album_name or "",
+            "display": f"{s.song_name} - {s.artist_name} (Database)"
+        } for s in internal_songs
+    ]
+
+    all_suggestions = formatted_internal + spotify_songs
     
     return {
-        "artists": [a for a in artists if a],
-        "albums": [a for a in albums if a]
+        "songs": all_suggestions,
+        "artists": list(set([s['artist'] for s in all_suggestions])),
+        "albums": list(set([s['album'] for s in all_suggestions if s['album']]))
     }
 
 @router.post("/songs/create")
@@ -38,53 +70,33 @@ async def create_custom_song(
     artist_name: str = Form(...),
     album_name: str = Form(None),
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db) # ใช้ AsyncSession ให้ตรงกับโปรเจค
+    db: AsyncSession = Depends(get_db)
 ):
     try:
-        # 1. จัดการ Path ไฟล์
         upload_dir = "static/song_covers"
         os.makedirs(upload_dir, exist_ok=True)
         unique_filename = f"{uuid.uuid4()}_{file.filename}"
         file_path = os.path.join(upload_dir, unique_filename)
 
-        # 2. บันทึกไฟล์แบบ Async
         async with aiofiles.open(file_path, 'wb') as out_file:
             content = await file.read()
             await out_file.write(content)
 
-        # 3. บันทึกข้อมูลลง DB และต้องใช้ await commit
         new_song = Song(
             song_name=song_name,
             category=category,
             artist_name=artist_name,
             album_name=album_name,
-            # บันทึก URL สำหรับเข้าถึงรูปภาพ (ควรนำหน้าด้วย http://... เมื่อส่งไป Flutter)
             song_cover_url=f"/static/song_covers/{unique_filename}",
             is_custom_added=True
         )
         
         db.add(new_song)
-        await db.commit() # สำคัญมาก: ต้อง await ถ้าเป็น AsyncSession
+        await db.commit()
         await db.refresh(new_song)
 
         return {"status": "success", "message": "Song created successfully", "data": new_song}
     
     except Exception as e:
-        await db.rollback() # ย้อนคืนข้อมูลหากเกิด Error
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/search-metadata")
-async def search_metadata(query: str, db: AsyncSession = Depends(get_db)):
-    """ค้นหาข้อมูลศิลปิน/อัลบั้มที่มีอยู่แล้วเพื่อช่วย User พิมพ์"""
-    # ค้นหาศิลปิน
-    artist_stmt = select(Song.artist_name).where(Song.artist_name.ilike(f"%{query}%")).distinct()
-    artist_res = await db.execute(artist_stmt)
-    
-    # ค้นหาอัลบั้ม
-    album_stmt = select(Song.album_name).where(Song.album_name.ilike(f"%{query}%")).distinct()
-    album_res = await db.execute(album_stmt)
-    
-    return {
-        "artists": [a[0] for a in artist_res.all() if a[0]],
-        "albums": [a[0] for a in album_res.all() if a[0]]
-    }

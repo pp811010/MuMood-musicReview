@@ -23,6 +23,7 @@ class _EditSongPageState extends State<EditSongPage> {
   late TextEditingController _nameController;
   late TextEditingController _artistController;
   late TextEditingController _albumController;
+  late TextEditingController _linkController;
 
   String? _selectedCategory;
   File? _newImageFile;
@@ -53,6 +54,9 @@ class _EditSongPageState extends State<EditSongPage> {
     _artistController = TextEditingController(text: widget.songData['artist']);
     _albumController = TextEditingController(
       text: widget.songData['album'] ?? "",
+    );
+    _linkController = TextEditingController(
+      text: widget.songData['link_url'] ?? "",
     );
 
     if (widget.songData['is_custom'] == false) {
@@ -126,26 +130,29 @@ class _EditSongPageState extends State<EditSongPage> {
   Future<void> _updateSong() async {
     if (!_formKey.currentState!.validate()) return;
 
-  final currentSong = _nameController.text.trim().toLowerCase();
-  final currentArtist = _artistController.text.trim().toLowerCase();
+    final currentSong = _nameController.text.trim().toLowerCase();
+    final currentArtist = _artistController.text.trim().toLowerCase();
 
-  // 1. ตรวจสอบกับ Snapshot (ค่าเดิมที่โหลดมาตอนแรก)
-  bool isMatchSnapshot = _snapshotSpotifySong != null &&
-      currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
-      currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
+    // 1. ตรวจสอบกับ Snapshot (ค่าเดิมที่โหลดมาตอนแรก)
+    bool isMatchSnapshot =
+        _snapshotSpotifySong != null &&
+        currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
+        currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
-  // 2. ตรวจสอบกับรายการแนะนำ (กรณีผู้ใช้พิมพ์หาจนเจอใน Spotify)
-  bool isMatchSuggestions = _songObjects.any((item) =>
-      item['name'].toString().toLowerCase().trim() == currentSong &&
-      item['artist'].toString().toLowerCase().trim() == currentArtist);
-
-  if (isMatchSnapshot || isMatchSuggestions) {
-    _showSnackBar(
-      "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องแก้ไขให้ซ้ำซ้อน",
-      Colors.orange,
+    // 2. ตรวจสอบกับรายการแนะนำ (กรณีผู้ใช้พิมพ์หาจนเจอใน Spotify)
+    bool isMatchSuggestions = _songObjects.any(
+      (item) =>
+          item['name'].toString().toLowerCase().trim() == currentSong &&
+          item['artist'].toString().toLowerCase().trim() == currentArtist,
     );
-    return;
-  }
+
+    if (isMatchSnapshot || isMatchSuggestions) {
+      _showSnackBar(
+        "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องแก้ไขให้ซ้ำซ้อน",
+        Colors.orange,
+      );
+      return;
+    }
 
     setState(() => _isProcessing = true);
     try {
@@ -157,6 +164,7 @@ class _EditSongPageState extends State<EditSongPage> {
       request.fields['category'] = _selectedCategory!;
       request.fields['artist_name'] = _artistController.text.trim();
       request.fields['album_name'] = _albumController.text.trim();
+      request.fields['link_url'] = _linkController.text.trim();
 
       if (_newImageFile != null) {
         request.files.add(
@@ -262,6 +270,14 @@ class _EditSongPageState extends State<EditSongPage> {
                 "Album Name",
                 'album',
                 _albumFocus,
+                isOptional: true,
+              ),
+              const SizedBox(height: 20),
+              _buildLabel("Song Link"),
+              _buildTextField(
+                _linkController,
+                "Song Link URL",
+                focusNode: FocusNode(),
                 isOptional: true,
               ),
               const SizedBox(height: 40),
@@ -441,13 +457,15 @@ class _EditSongPageState extends State<EditSongPage> {
   }
 
   Widget _buildSubmitButton() {
+    final bool isCustom = widget.songData['is_custom'] == true;
     return SizedBox(
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: _isProcessing ? null : _updateSong,
+        onPressed: (_isProcessing || !isCustom) ? null : _updateSong,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF00D138),
+          disabledBackgroundColor: Colors.grey.withOpacity(0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
