@@ -106,7 +106,7 @@ class _HomeState extends State<Home> {
           _genreSongs = songs
               .map<Music>(
                 (item) => Music(
-                  id: item['id'],
+                  id: item['id'].toString(),
                   title: item['song_name'] ?? '',
                   artist: item['artist_name'] ?? '',
                   genre: genre,
