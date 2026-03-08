@@ -46,7 +46,28 @@ async def get_top_charts():
 
 
 @router.get("/songs-by-genre")
-async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
+async def get_songs_by_genre(db: SessionDep, genre: str = "pop", limit: int = 10):
+    """Get song in spotify and DB (Dynamic)"""
+
+    # query music in DB
+    query_stmt = select(Song).where(Song.is_custom_added == True)
+    if genre.lower() != "all":
+        query_stmt = query_stmt.where(Song.category.ilike(f"%{genre}%"))
+
+    result = await db.execute(query_stmt.limit(limit))
+    db_songs = result.scalars().all()
+
+    custom_results = [{
+        "id": str(s.id),
+        "song_name": s.song_name,
+        "artist_name": s.artist_name,
+        "album_name": s.album_name,
+        "song_cover_url": f"{BASE_URL}{s.song_cover_url}" if s.song_cover_url and s.song_cover_url.startswith("/static") else s.song_cover_url,
+        "source": "db",
+        "is_custom": True
+    } for s in db_songs]
+
+    # call spotify API
     token = await get_spotify_token()
     async with httpx.AsyncClient() as client:
         if genre.lower() == "all":
@@ -62,7 +83,7 @@ async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.json())
         tracks = response.json()["tracks"]["items"]
-    results = [{
+    spotify_results = [{
         "id": t["id"],
         "song_name": t["name"],
         "artist_name": t["artists"][0]["name"] if t.get("artists") else "Unknown",
@@ -70,6 +91,9 @@ async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
         "song_cover_url": t["album"]["images"][0]["url"] if t.get("album") and t["album"].get("images") else None,
         "preview_url": t.get("preview_url")
     } for t in tracks]
+
+    # final result
+    results = custom_results + spotify_results
 
     return {"status": "success", "genre": genre, "songs": results}
 
