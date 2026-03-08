@@ -18,7 +18,6 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 async def search_metadata(query: str, db: AsyncSession = Depends(get_db)):
     """ค้นหาข้อมูลเพลง ศิลปิน และอัลบั้ม ทั้งจาก DB และ Spotify แบบ Autocomplete สำหรับ suggesstion"""
     
-
     internal_stmt = select(Song).where(
         or_(
             Song.song_name.ilike(f"%{query}%"),
