@@ -69,6 +69,7 @@ async def create_custom_song(
     artist_name: str = Form(...),
     album_name: str = Form(None),
     file: UploadFile = File(...),
+    link_url: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     try:
@@ -86,6 +87,7 @@ async def create_custom_song(
             category=category,
             artist_name=artist_name,
             album_name=album_name,
+            link_url=link_url,
             song_cover_url=f"/static/song_covers/{unique_filename}",
             is_custom_added=True
         )
