@@ -28,7 +28,7 @@ app.include_router(favorite.router)
 app.include_router(emotion.router)
 app.include_router(mood_color.router)
 
-# mount image path file
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 

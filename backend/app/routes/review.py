@@ -85,7 +85,7 @@ async def create_review(
                 album_name=spotify_data["album"],
                 song_cover_url=spotify_data["cover"],
                 preview_url=spotify_data["preview_url"],
-                link_url = spotify_data["preview_url"],
+                link_url = spotify_data["link_url"],
                 is_custom_added=False
             )
             db.add(song)

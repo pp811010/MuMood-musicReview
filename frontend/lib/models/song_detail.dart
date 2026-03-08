@@ -11,7 +11,7 @@ class SongDetail {
   final List<dynamic> comment;
   final String source;
   final String? previewUrl; 
-  final String? spotifyUrl;
+  final String? linkurl;
 
 
   SongDetail({
@@ -27,6 +27,6 @@ class SongDetail {
     required this.comment,
     required this.source,
     required this.previewUrl,
-    required this.spotifyUrl
+    required this.linkurl
   });
 }

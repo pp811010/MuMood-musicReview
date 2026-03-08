@@ -25,7 +25,7 @@ Future<SongDetail?> fetchDetailSong(String songId) async {
       comment: comments,
       source: result['source'] ?? '',
       previewUrl: result['preview_url'],
-      spotifyUrl: result['spotify_url'],
+      linkurl: result['link_url'],
     );
 }
 

@@ -11,6 +11,8 @@ import 'package:frontend/widgets/detail_slider.dart';
 import 'package:frontend/widgets/emotion_chip.dart';
 import 'package:frontend/widgets/score_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MusicDetail extends StatefulWidget {
   final String id;
@@ -30,7 +32,7 @@ class _MusicDetailState extends State<MusicDetail> {
   double lyricValue = 0;
   double moodValue = 0;
   bool _isSubmitting = false;
-  bool _isEditingReview = false; // true = กำลัง edit หลัง submit แล้ว
+  bool _isEditingReview = false;
   final TextEditingController _commentController = TextEditingController();
 
   bool hasMyComment = false;
@@ -44,6 +46,9 @@ class _MusicDetailState extends State<MusicDetail> {
   int? selectedMoodColorId;
   Map<String, dynamic> myReview = {};
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlaying = false;
+
   @override
   void initState() {
     super.initState();
@@ -51,11 +56,18 @@ class _MusicDetailState extends State<MusicDetail> {
     _fetchMood();
     _fetchDetailSong();
     _getPerfs();
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed && mounted) {
+        setState(() => _isPlaying = false);
+        _audioPlayer.seek(Duration.zero); 
+      }
+    });
   }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -239,7 +251,7 @@ class _MusicDetailState extends State<MusicDetail> {
     );
     if (ok) {
       _showSnack("Updated Shared Rating", Colors.green);
-      setState(() => _isEditingReview = false); // lock หลัง update
+      setState(() => _isEditingReview = false);
       await _fetchDetailSong(isSilent: true);
     }
   }
@@ -289,8 +301,6 @@ class _MusicDetailState extends State<MusicDetail> {
   Future<void> _toggleFavorite() async {
     if (songDetail == null) return;
     final result = await toggleFavorite(
-      // ใช้ songDetail.id เสมอ (DB id) + source ที่ถูกต้อง
-      // กรณี source=spotify และยังไม่เคย save ใน DB จะใช้ widget.id (spotify id) แทน
       songIdReference: songDetail!.source == 'spotify'
           ? widget.id
           : songDetail!.id,
@@ -301,6 +311,31 @@ class _MusicDetailState extends State<MusicDetail> {
       _showSnack(result.message, Colors.green);
     }
   }
+
+Future<void> _togglePreview() async {
+  if (songDetail?.previewUrl == null) return;
+
+  if (_isPlaying) {
+    await _audioPlayer.pause();
+    setState(() => _isPlaying = false);
+    return;
+  }
+
+  try {
+    await _audioPlayer.setUrl(songDetail!.previewUrl!);
+    await _audioPlayer.seek(Duration.zero);
+    await _audioPlayer.play();
+    debugPrint('play() done — _isPlaying will be set to true');
+    if (mounted) {
+      setState(() => _isPlaying = true);
+      debugPrint('setState done — _isPlaying: $_isPlaying');
+    } else {
+      debugPrint('NOT mounted!');
+    }
+  } catch (e) {
+    debugPrint('Audio error: $e');
+  }
+}
 
   bool _isReviewComplete() =>
       selectedEmotionId != null &&
@@ -331,7 +366,6 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
-  /// Post comment โดยไม่ต้องมี rating ก่อน (ใช้ POST /review/comment)
   Future<void> _submitCommentStandalone() async {
     final response = await ApiClient.post('/review/comment', {
       "comment": _commentController.text,
@@ -599,51 +633,143 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
-
   Widget _buildMusicCover() {
     final raw = songDetail!.image;
-    final imageUrl = (raw != null && raw.startsWith('/')) 
-        ? 'http://10.0.2.2:8000$raw' 
+    final imageUrl = (raw != null && raw.startsWith('/'))
+        ? 'http://10.0.2.2:8000$raw'
         : raw;
+
     return Column(
       children: [
-        Container(
-          width: 280,
-          height: 280,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Colors.grey[900],
-            boxShadow: [
-              BoxShadow(
-                color: selectedColor.withOpacity(0.5),
-                blurRadius: 40,
-                spreadRadius: 10,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              imageUrl ?? '',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: Colors.grey[800],
-                child: const Center(
-                  child: Icon(
-                    Icons.music_note,
-                    size: 80,
-                    color: Colors.white54,
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // ── รูปปก ──
+            Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.grey[900],
+                boxShadow: [
+                  BoxShadow(
+                    color: selectedColor.withOpacity(0.5),
+                    blurRadius: 40,
+                    spreadRadius: 10,
                   ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.network(
+                      imageUrl ?? '',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[800],
+                        child: const Center(
+                          child: Icon(
+                            Icons.music_note,
+                            size: 80,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // overlay มืดตอนเล่น
+                    if (_isPlaying)
+                      Container(color: Colors.black.withOpacity(0.35)),
+                  ],
                 ),
               ),
             ),
+
+            // ── Play / Pause button ตรงกลาง ──
+            // ── Play / Pause button ตรงกลาง ──
+            if (songDetail!.previewUrl != null)
+              GestureDetector(
+                onTap: _togglePreview,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _isPlaying
+                          ? selectedColor
+                          : Colors.white.withOpacity(0.8),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+        if (_isPlaying) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: selectedColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Now Playing',
+                style: TextStyle(color: selectedColor, fontSize: 12),
+              ),
+            ],
           ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // ── ชื่อเพลง + ไอคอนลิงก์ ──
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                songDetail!.songName,
+                style: const TextStyle(fontSize: 18, color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            if (songDetail!.linkurl != null) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse(songDetail!.linkurl!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: const Icon(
+                  Icons.open_in_new_rounded,
+                  color: Colors.white38,
+                  size: 18,
+                ),
+              ),
+            ],
+          ],
         ),
-        const SizedBox(height: 25),
-        Text(
-          songDetail!.songName,
-          style: const TextStyle(fontSize: 18, color: Colors.white),
-        ),
+
+        const SizedBox(height: 4),
         Text(
           songDetail!.artistName,
           style: const TextStyle(fontSize: 16, color: Colors.white24),
