@@ -33,7 +33,6 @@ class Song(Base):
     artist_name = Column(String, index=True, nullable=True)
     album_name = Column(String, nullable=True)
     song_cover_url = Column(String, nullable=True)
-    preview_url = Column(String, nullable=True)
     category = Column(String, nullable=True)
     link_url = Column(String, nullable=True)
     is_custom_added = Column(Boolean, default=False)
