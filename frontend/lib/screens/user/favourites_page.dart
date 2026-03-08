@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/api_client.dart';
+import '../../services/favorite_service.dart';
 import '../../services/user_service.dart';
+import '../user/song_detail.dart';
 
 class FavoritePage extends StatefulWidget {
   const FavoritePage({super.key});
@@ -9,7 +12,6 @@ class FavoritePage extends StatefulWidget {
 }
 
 class _FavoritePageState extends State<FavoritePage> {
-  // State
   List<Map<String, dynamic>> _favoriteSongs = [];
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
@@ -19,26 +21,40 @@ class _FavoritePageState extends State<FavoritePage> {
   void initState() {
     super.initState();
     _loadData();
+    dataRefreshNotifier.addListener(_onDataChanged);
+  }
+
+  @override
+  void dispose() {
+    dataRefreshNotifier.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      // โหลด Profile และ Favorites พร้อมกัน
       final results = await Future.wait([
         ApiService.getProfile(),
-        ApiService.getMyFavorites(),
+        fetchMyFavorites(),
       ]);
 
-      setState(() {
-        _profile = results[0] as Map<String, dynamic>;
-        _favoriteSongs = (results[1] as List).cast<Map<String, dynamic>>();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _profile = results[0] as Map<String, dynamic>;
+          _favoriteSongs = (results[1] as List).cast<Map<String, dynamic>>();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -53,7 +69,9 @@ class _FavoritePageState extends State<FavoritePage> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
 
     if (_errorMessage != null) {
@@ -86,8 +104,6 @@ class _FavoritePageState extends State<FavoritePage> {
       children: [
         const SizedBox(height: 10),
         _buildProfileHeader(),
-
-        // Section Title
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10),
           child: Column(
@@ -106,92 +122,139 @@ class _FavoritePageState extends State<FavoritePage> {
             ],
           ),
         ),
-
-        // Grid View
         Expanded(
-          child: _favoriteSongs.isEmpty
-              ? const Center(
-                  child: Text(
-                    'ยังไม่มีเพลงโปรด',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: GridView.builder(
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            color: Colors.redAccent,
+            backgroundColor: Colors.grey[900],
+            child: _favoriteSongs.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: const Center(
+                          child: Text(
+                            'ยังไม่มีเพลงโปรด',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 10,
+                    ),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: _favoriteSongs.length,
-                    physics: const BouncingScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.7,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
+                          crossAxisCount: 3,
+                          childAspectRatio: 0.7,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
                     itemBuilder: (context, index) {
                       final song = _favoriteSongs[index];
                       final coverUrl = song['song_cover_url'] as String?;
                       final songName = song['song_name'] ?? 'Unknown';
                       final artistName = song['artist_name'] ?? '';
+                      final songId = (song['song_id'] ?? song['id']).toString();
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                color: Colors.grey[800],
-                                image: coverUrl != null && coverUrl.isNotEmpty
-                                    ? DecorationImage(
-                                        image: NetworkImage(coverUrl),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                              ),
-                              child: coverUrl == null || coverUrl.isEmpty
-                                  ? const Center(
-                                      child: Icon(Icons.music_note,
-                                          color: Colors.white54, size: 32),
-                                    )
-                                  : null,
+                      return GestureDetector(
+                        // onTap: () async {
+                        //   if (songId == null) return;
+                        //   // TODO: เปลี่ยนคลาส SongDetailPage เป็นชื่อจริงที่คุณใช้
+                        //   /*
+                        //   await Navigator.push(
+                        //     context,
+                        //     MaterialPageRoute(
+                        //       builder: (context) => SongDetailPage(songId: songId.toString()),
+                        //     ),
+                        //   );
+                        //   _loadData();
+                        //   */
+                        // },
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => MusicDetail(id: songId),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  songName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                          );
+
+                          _loadData();
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey[800],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: coverUrl != null && coverUrl.isNotEmpty
+                                      ? Image.network(
+                                          coverUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(
+                                                    Icons.music_note,
+                                                    color: Colors.white54,
+                                                    size: 32,
+                                                  ),
+                                        )
+                                      : const Icon(
+                                          Icons.music_note,
+                                          color: Colors.white54,
+                                          size: 32,
+                                        ),
                                 ),
                               ),
-                              const Icon(
-                                Icons.favorite,
-                                color: Colors.redAccent,
-                                size: 14,
-                              ),
-                            ],
-                          ),
-                          Text(
-                            artistName,
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 11,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    songName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.favorite,
+                                  color: Colors.redAccent,
+                                  size: 14,
+                                ),
+                              ],
+                            ),
+                            Text(
+                              artistName,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 11,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
-                ),
+          ),
         ),
       ],
     );
@@ -231,22 +294,7 @@ class _FavoritePageState extends State<FavoritePage> {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leadingWidth: 80,
-      leading: TextButton.icon(
-        onPressed: () => Navigator.pop(context),
-        icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
-        label: const Text(
-          "Back",
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        style: TextButton.styleFrom(padding: const EdgeInsets.only(left: 10)),
-      ),
-      actions: [
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.login_outlined, color: Colors.white),
-        ),
-      ],
+      automaticallyImplyLeading: false,
     );
   }
 }

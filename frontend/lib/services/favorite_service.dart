@@ -12,9 +12,22 @@ Future<({bool isFavorited, String message})?> toggleFavorite({
 
   if (response.statusCode != 200) return null;
 
+  dataRefreshNotifier.value++;
+
   final data = jsonDecode(response.body);
   return (
     isFavorited: data['is_favorited'] as bool,
     message: data['message'] as String,
   );
+}
+
+Future<List<Map<String, dynamic>>> fetchMyFavorites() async {
+  final response = await ApiClient.get('/favorites/history/me');
+
+  if (response.statusCode == 200) {
+    final List<dynamic> data = jsonDecode(response.body);
+    return data.cast<Map<String, dynamic>>();
+  } else {
+    throw Exception('Failed to load favorites');
+  }
 }

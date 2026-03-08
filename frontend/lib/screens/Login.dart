@@ -21,6 +21,7 @@ class _LoginState extends State<Login> {
 
   bool _rememberMe = false;
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -55,16 +56,24 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _login() async {
+    // Admin bypass ก่อน — ไม่ต้องผ่าน email validation
+    if (_emailController.text == "admin555" &&
+        _passwordController.text == "admin12345678") {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => AdminApp()),
+        (route) => false,
+      );
+      return;
+    }
 
-
-    if(_emailController.text == "admin555" && _passwordController.text == "admin12345678"){
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => AdminApp()),
-          (route) => false,
-        );
-        setState(() => _isLoading = false);
-        return;
+    // Validate email ต้องมี @ และลงท้าย .com
+    final email = _emailController.text.trim();
+    if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
+      _showErrorSnackBar(
+        "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
+      );
+      return;
     }
 
     setState(() {
@@ -251,7 +260,7 @@ class _LoginState extends State<Login> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         hintText: '********',
                         hintStyle: const TextStyle(color: Colors.white54),
@@ -260,6 +269,18 @@ class _LoginState extends State<Login> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
                           borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.white54,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                       style: const TextStyle(color: Colors.white),

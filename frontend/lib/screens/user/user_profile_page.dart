@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
+import '../../services/favorite_service.dart';
+import '../../services/history_service.dart';
+import '../../core/api_client.dart'; // import ตัวกระจายสัญญาณ
 import '../Login.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -12,6 +15,9 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   // State
   Map<String, dynamic>? _profile;
+  int _reviewsCount = 0;
+  int _favoritesCount = 0;
+
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -19,20 +25,44 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
+    // ดักรับสัญญาณรีเฟรชจากหน้าอื่น
+    dataRefreshNotifier.addListener(_onDataChanged);
+  }
+
+  @override
+  void dispose() {
+    // คืนค่า
+    dataRefreshNotifier.removeListener(_onDataChanged);
+    super.dispose();
+  }
+
+  void _onDataChanged() {
+    if (mounted) _loadProfile(); // โหลดใหม่เมื่อมีสัญญาณ
   }
 
   Future<void> _loadProfile() async {
     try {
-      final data = await ApiService.getProfile();
-      setState(() {
-        _profile = data;
-        _isLoading = false;
-      });
+      final results = await Future.wait([
+        ApiService.getProfile(),
+        fetchMyReviews(),
+        fetchMyFavorites(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _profile = results[0] as Map<String, dynamic>;
+          _reviewsCount = (results[1] as List).length;
+          _favoritesCount = (results[2] as List).length;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -93,13 +123,16 @@ class _ProfilePageState extends State<ProfilePage> {
     final bio = _profile?['bio'] ?? '';
     final createdAt = _profile?['created_at'] ?? '';
 
-    return SingleChildScrollView(
-      child: Padding(
+    return RefreshIndicator(
+      onRefresh: _loadProfile,
+      color: Colors.white,
+      backgroundColor: Colors.grey[900],
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // Profile Picture
             Center(
               child: Container(
                 padding: const EdgeInsets.all(4),
@@ -114,7 +147,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
             Text(
               username,
@@ -137,15 +169,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: const TextStyle(color: Colors.white54, fontSize: 13),
               ),
             ],
-
             const SizedBox(height: 40),
 
-            // Stats — ดึงจาก reviews / favorites ถ้ามี หรือโชว์ตาม profile
-            _buildStatRow("REVIEWS", "${_profile?['reviews_count'] ?? '-'}"),
-            _buildStatRow(
-              "FAVORITES",
-              "${_profile?['favorites_count'] ?? '-'}",
-            ),
+            // นำยอดจำนวนเข้าไปแสดงใน UI เดิมของคุณแล้วครับ!
+            _buildStatRow("REVIEWS", "$_reviewsCount"),
+            _buildStatRow("FAVORITES", "$_favoritesCount"),
 
             const SizedBox(height: 20),
             Align(
@@ -155,24 +183,20 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
-
             const SizedBox(height: 40),
-
-            // Logout Button
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _logout,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD50000),
+                  backgroundColor: Colors.redAccent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 0,
                 ),
+                onPressed: _logout,
                 child: const Text(
-                  "Log out",
+                  "LOG OUT",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -225,16 +249,8 @@ class _ProfilePageState extends State<ProfilePage> {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leadingWidth: 80,
-      leading: TextButton.icon(
-        onPressed: () => Navigator.pop(context),
-        icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
-        label: const Text(
-          "Back",
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        style: TextButton.styleFrom(padding: const EdgeInsets.only(left: 10)),
-      ),
+      automaticallyImplyLeading:
+          false, // ป้องกันการสร้างปุ่ม Back ตอนอยู่บน Bottom Nav
       actions: [
         IconButton(
           onPressed: _logout,

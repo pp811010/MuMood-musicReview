@@ -20,6 +20,7 @@ Future<bool> submitRating({
     "mood_score": moodScore,
     "source": source,
   });
+  dataRefreshNotifier.value++;
   return response.statusCode == 200;
 }
 
@@ -38,6 +39,7 @@ Future<bool> updateRating({
     "emotion_id": emotionId,
     "mood_color_id": moodColorId,
   });
+  dataRefreshNotifier.value++;
   return response.statusCode == 200;
 }
 
@@ -48,6 +50,7 @@ Future<bool> submitComment({
   final response = await ApiClient.put('/review/$reviewId', {
     "comment": comment,
   });
+  dataRefreshNotifier.value++;
   return response.statusCode == 200;
 }
 
@@ -55,7 +58,6 @@ Future<bool> deleteComment(int reviewId) async {
   final response = await ApiClient.delete('/review/delete/comment/$reviewId');
   return response.statusCode == 200;
 }
-
 
 String? parseError(String responseBody) {
   try {
