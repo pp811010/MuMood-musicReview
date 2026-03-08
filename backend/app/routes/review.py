@@ -84,7 +84,6 @@ async def create_review(
                 artist_name=spotify_data["artist"],
                 album_name=spotify_data["album"],
                 song_cover_url=spotify_data["cover"],
-                preview_url=spotify_data["preview_url"],
                 link_url = spotify_data["link_url"],
                 is_custom_added=False
             )
@@ -207,3 +206,5 @@ async def delete_review(
     await db.delete(review)
     await db.commit()
     return {"message": "Delete Review Success"}
+
+

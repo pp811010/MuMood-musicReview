@@ -43,7 +43,7 @@ Future<bool> updateRating({
   return response.statusCode == 200;
 }
 
-Future<bool> submitComment({
+Future<bool> editComment({
   required int reviewId,
   required String comment,
 }) async {

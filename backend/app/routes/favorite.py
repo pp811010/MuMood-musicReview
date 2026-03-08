@@ -87,19 +87,18 @@ async def toggle_favorite(
                 artist_name=spotify_data["artist"],
                 album_name=spotify_data["album"],
                 song_cover_url=spotify_data["cover"],
-                preview_url=spotify_data["preview_url"],
                 link_url = spotify_data["link_url"],
                 is_custom_added=False
             )
             db.add(song)
-            await db.flush() # flush เพื่อให้ได้ song.id ไปใช้
+            await db.flush()
             
-    else: # ถ้า source ไม่ใช่ spotify (เช่น "db")
+    else:
         song = await db.scalar(select(Song).where(Song.id == int(data.song_id_reference)))
         if not song:
             raise HTTPException(status_code=404, detail="ไม่พบเพลงนี้ในระบบ")
 
-    # 2. Toggle Favorite (ใช้ song.id ที่ได้มาแน่นอนแล้ว)
+
     existing = await db.scalar(
         select(Favorite).where(
             Favorite.user_id == current_user.id,

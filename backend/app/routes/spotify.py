@@ -62,6 +62,8 @@ async def get_songs_by_genre(genre: str = "pop", limit: int = 10):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.json())
         tracks = response.json()["tracks"]["items"]
+
+
     results = [{
         "id": t["id"],
         "song_name": t["name"],

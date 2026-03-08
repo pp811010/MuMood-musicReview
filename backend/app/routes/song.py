@@ -10,7 +10,7 @@ from app.database import SessionDep
 from app.services.spotify import get_spotify_token
 from app.core.security import get_current_user
 from sqlalchemy.orm import selectinload
-from app.routes.deeza import fetch_deezer_preview
+from app.services.deeza import fetch_deezer_preview
 
 router = APIRouter(prefix="/songs", tags=["Songs"])
 
@@ -43,7 +43,6 @@ async def search_songs(q: str, db: SessionDep):
             "artist": s.artist_name,
             "image": img,
             "source": "db",
-            "preview_url": s.preview_url,
             "is_custom": s.is_custom_added
         })
 
@@ -62,7 +61,6 @@ async def search_songs(q: str, db: SessionDep):
             "id": item["id"],
             "name": item["name"],
             "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
-            "preview_url": item.get("preview_url"),
             "image": item["album"]["images"][0]["url"] if item.get("album") else None,
             "source": "spotify",
             "is_custom": False
@@ -73,13 +71,6 @@ async def search_songs(q: str, db: SessionDep):
 @router.post("/", response_model=SongResponse)
 async def create_song(song: SongCreate, db: SessionDep):
     song_data = song.model_dump()
-    
-    if not song_data.get("preview_url"):
-        song_data["preview_url"] = await fetch_deezer_preview(
-            song_name=song_data.get("song_name", ""),
-            artist_name=song_data.get("artist_name", "")
-        )
-        
     db_song = Song(**song_data)
     db.add(db_song)
     await db.commit()
@@ -129,6 +120,7 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
                 selectinload(Review.mood_color),
                 selectinload(Review.user)
             )
+            .order_by(Review.created_at.desc())
         )
         reviews_result = await db.execute(reviews_stmt)
         reviews = reviews_result.scalars().all()
@@ -143,13 +135,23 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
 
         emotion_counts = {}
         color_counts = {}
+        latest_color_per_count = {}
+        
         for r in reviews:
             if r.emotion:
                 name = r.emotion.name
                 emotion_counts[name] = emotion_counts.get(name, 0) + 1
             if r.mood_color:
                 hex_color = r.mood_color.color_hex
-                color_counts[hex_color] = color_counts.get(hex_color, 0) + 1
+                old_count = color_counts.get(hex_color, 0)
+                new_count = old_count + 1
+                color_counts[hex_color] = new_count
+                
+                # เก็บสีล่าสุดสำหรับ count นี้
+                if new_count not in latest_color_per_count:
+                    latest_color_per_count[new_count] = hex_color
+                # ถ้ามี count เท่ากัน ให้เอาสีที่ loop มาทีหลัง (ซึ่งเป็นสีเก่ากว่า)
+                # แต่เราต้องการสีล่าสุด ดังนั้นไม่ต้อง update
 
         fav_stmt = select(Favorite).where(
             Favorite.song_id == db_song.id,
@@ -158,9 +160,28 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
         fav_result = await db.execute(fav_stmt)
         is_favorite = fav_result.scalar_one_or_none() is not None
 
-        dominant_color = max(color_counts, key=color_counts.get) if color_counts else None
+        # หา dominant color: ถ้ามีหลายสีที่ count เท่ากัน เอาสีที่ถูกเลือกล่าสุด
+        dominant_color = None
+        if color_counts:
+            max_count = max(color_counts.values())
+            # หาสีทั้งหมดที่มี max_count
+            colors_with_max_count = [
+                color for color, count in color_counts.items() 
+                if count == max_count
+            ]
+            
+            if len(colors_with_max_count) == 1:
+                dominant_color = colors_with_max_count[0]
+            else:
+                for r in reviews:
+                    if r.mood_color and r.mood_color.color_hex in colors_with_max_count:
+                        dominant_color = r.mood_color.color_hex
+                        break
 
-        preview_url = await fetch_deezer_preview(db_song.song_name, db_song.artist_name)
+        artist_all = db_song.artist_name
+        atist_first = artist_all.split(',')[0].strip()
+
+        preview_url = await fetch_deezer_preview(db_song.song_name, atist_first)
         
 
         return {
@@ -209,7 +230,10 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
         
         data = response.json()
 
-        preview_url = await fetch_deezer_preview(data["name"], data["artists"][0]["name"])
+        artist_all = data["artists"][0]["name"]
+        atist_first = artist_all.split(',')[0].strip()
+
+        preview_url = await fetch_deezer_preview(data["name"], atist_first)
         
         return {
             "id": identifier,
@@ -225,8 +249,8 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
             "dominant_color": None,
             "comment": [],
             "source": "spotify",
-            "link_url": data.get("external_urls", {}).get("spotify"), # แก้ไข Path ไม่ให้แอปพังแล้ว
-            "preview_url": preview_url # ลบ preview_url อันเก่าออก ใช้ตัวที่ได้จาก Deezer ตัวเดียว
+            "link_url": data.get("external_urls", {}).get("spotify"),
+            "preview_url": preview_url
         }
 
 @router.patch("/{song_id}", response_model=SongResponse)
