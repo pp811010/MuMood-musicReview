@@ -262,21 +262,21 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
-  Future<void> _submitComment() async {
-    if (_commentController.text.trim().isEmpty) return;
-    final ok = await submitComment(
-      reviewId: myReview['id'],
-      comment: _commentController.text,
-    );
-    if (ok) {
-      _showSnack("Comment posted", Colors.green);
-      await _fetchDetailSong(isSilent: true);
-      setState(() => openReview = false);
-    }
-  }
+  // Future<void> _submitComment() async {
+  //   if (_commentController.text.trim().isEmpty) return;
+  //   final ok = await submitComment(
+  //     reviewId: myReview['id'],
+  //     comment: _commentController.text,
+  //   );
+  //   if (ok) {
+  //     _showSnack("Comment posted", Colors.green);
+  //     await _fetchDetailSong(isSilent: true);
+  //     setState(() => openReview = false);
+  //   }
+  // }
 
   Future<void> _updateComment() async {
-    final ok = await submitComment(
+    final ok = await editComment(
       reviewId: myReview['id'],
       comment: _commentController.text,
     );
@@ -314,7 +314,7 @@ class _MusicDetailState extends State<MusicDetail> {
     );
     if (result != null) {
       setState(() => isfavorite = result.isFavorited);
-      _showSnack(result.message, Colors.green);
+      _showSnack(result.message, result.isFavorited ?  Colors.green:const Color.fromARGB(255, 175, 76, 76));
     }
   }
 
@@ -328,7 +328,6 @@ class _MusicDetailState extends State<MusicDetail> {
       await _audioPlayer.pause();
     } else {
       try {
-        // ตรวจสอบว่าต้องโหลด URL ใหม่ไหม
         if (_audioPlayer.audioSource == null ||
             (_audioPlayer.audioSource as UriAudioSource).uri.toString() !=
                 songDetail!.previewUrl) {
@@ -355,7 +354,7 @@ class _MusicDetailState extends State<MusicDetail> {
         // ใช้ endpoint ใหม่ที่แยก comment จาก rating
         await _submitCommentStandalone();
       } else if (myReview['comment'] == null) {
-        await _submitComment();
+        await _submitCommentStandalone();
       } else {
         await _updateComment();
       }
@@ -371,7 +370,7 @@ class _MusicDetailState extends State<MusicDetail> {
   }
 
   Future<void> _submitCommentStandalone() async {
-    final response = await ApiClient.post('/review/comment', {
+    final response = await ApiClient.post('/comment/standalone', {
       "comment": _commentController.text,
       "song_id_reference": songDetail!.source == 'spotify'
           ? widget.id
@@ -446,34 +445,34 @@ class _MusicDetailState extends State<MusicDetail> {
         child: Stack(
           children: [
             if (songDetail!.dominantColor != null) ...[
-              // Container(
-              //   decoration: BoxDecoration(
-              //     gradient: LinearGradient(
-              //       begin: Alignment.topCenter,
-              //       end: Alignment.bottomCenter,
-              //       colors: [
-              //         hexToColor(songDetail!.dominantColor!),
-              //         hexToColor(songDetail!.dominantColor!).withOpacity(0.7),
-              //         hexToColor(songDetail!.dominantColor!).withOpacity(0.2),
-              //         const Color(0xFF0E0E0E),
-              //       ],
-              //       stops: const [0.2, 0.3, 0.7, 1.0],
-              //     ),
-              //   ),
-              // ),
-              // Container(
-              //   decoration: BoxDecoration(
-              //     gradient: LinearGradient(
-              //       begin: Alignment.topCenter,
-              //       end: Alignment.bottomCenter,
-              //       colors: [
-              //         Colors.black.withOpacity(0.0),
-              //         Colors.black.withOpacity(0.25),
-              //         Colors.black.withOpacity(0.55),
-              //       ],
-              //     ),
-              //   ),
-              // ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      hexToColor(songDetail!.dominantColor!),
+                      hexToColor(songDetail!.dominantColor!).withOpacity(0.7),
+                      hexToColor(songDetail!.dominantColor!).withOpacity(0.2),
+                      const Color(0xFF0E0E0E),
+                    ],
+                    stops: const [0.2, 0.3, 0.7, 1.0],
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.0),
+                      Colors.black.withOpacity(0.25),
+                      Colors.black.withOpacity(0.55),
+                    ],
+                  ),
+                ),
+              ),
             ],
             CustomScrollView(
               slivers: [
@@ -502,7 +501,7 @@ class _MusicDetailState extends State<MusicDetail> {
                         isfavorite ? Icons.favorite : Icons.favorite_border,
                       ),
                       color: isfavorite
-                          ? const Color.fromARGB(255, 87, 140, 233)
+                          ? const Color.fromARGB(255, 221, 36, 36)
                           : Colors.white,
                     ),
                   ],
@@ -638,6 +637,7 @@ class _MusicDetailState extends State<MusicDetail> {
   }
 
   Widget _buildMusicCover() {
+    debugPrint('link_url : ${songDetail!.linkurl}');
     final raw = songDetail!.image;
     final imageUrl = (raw != null && raw.startsWith('/'))
         ? 'http://10.0.2.2:8000$raw'
@@ -756,7 +756,8 @@ class _MusicDetailState extends State<MusicDetail> {
             ),
             if (songDetail!.linkurl != null) ...[
               const SizedBox(width: 6),
-              GestureDetector(
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
                 onTap: () async {
                   final uri = Uri.parse(songDetail!.linkurl!);
                   if (await canLaunchUrl(uri)) {

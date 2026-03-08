@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi import FastAPI
 
+from app.routes import comment
+
 app = FastAPI()
 
 app.add_middleware(
@@ -27,6 +29,7 @@ app.include_router(review.router)
 app.include_router(favorite.router)
 app.include_router(emotion.router)
 app.include_router(mood_color.router)
+app.include_router(comment.router)
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

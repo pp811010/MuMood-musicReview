@@ -65,10 +65,11 @@ class Review(Base):
     emotion_id = Column(Integer, ForeignKey("emotions.id"), nullable=True)
     mood_color_id = Column(Integer, ForeignKey("mood_colors.id"), nullable=True)
     
-    beat_score = Column(Float)
-    lyric_score = Column(Float)
-    mood_score = Column(Float)
-    comment = Column(Text)
+    beat_score = Column(Float, nullable=True) 
+    lyric_score = Column(Float, nullable=True)
+    mood_score = Column(Float, nullable=True) 
+    comment = Column(Text, nullable=True)  
+    
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
     updated_at = Column(DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc)
 

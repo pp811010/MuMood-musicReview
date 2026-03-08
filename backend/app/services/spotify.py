@@ -3,7 +3,7 @@
 import httpx
 from fastapi import HTTPException
 from app.core.config import settings
-from app.routes.deeza import fetch_deezer_preview
+from app.services.deeza import fetch_deezer_preview
 
 
 async def get_spotify_token() -> str:

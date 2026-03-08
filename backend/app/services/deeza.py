@@ -3,15 +3,16 @@ import httpx
 
 async def fetch_deezer_preview(song_name: str, artist_name: str) -> str | None:
     async with httpx.AsyncClient() as client:
+        print(artist_name)
         query = f'artist:"{artist_name}" track:"{song_name}"'
         response = await client.get(
             "https://api.deezer.com/search",
             params={"q": query, "limit": 1}
         )
-        
+
         if response.status_code != 200:
             return None
-            
+
         data = response.json().get("data", [])
         if not data:
             return None
