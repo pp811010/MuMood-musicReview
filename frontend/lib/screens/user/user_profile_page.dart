@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../services/user_service.dart';
+import '../../core/api_client.dart';
 import '../../services/favorite_service.dart';
 import '../../services/history_service.dart';
-import '../../core/api_client.dart'; // import ตัวกระจายสัญญาณ
+import '../../services/user_service.dart';
+import '../../widgets/page_state_handler.dart';
 import '../Login.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -13,11 +14,9 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // State
   Map<String, dynamic>? _profile;
   int _reviewsCount = 0;
   int _favoritesCount = 0;
-
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -25,19 +24,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
-    // ดักรับสัญญาณรีเฟรชจากหน้าอื่น
     dataRefreshNotifier.addListener(_onDataChanged);
   }
 
   @override
   void dispose() {
-    // คืนค่า
     dataRefreshNotifier.removeListener(_onDataChanged);
     super.dispose();
   }
 
   void _onDataChanged() {
-    if (mounted) _loadProfile(); // โหลดใหม่เมื่อมีสัญญาณ
+    if (mounted) _loadProfile();
   }
 
   Future<void> _loadProfile() async {
@@ -48,30 +45,36 @@ class _ProfilePageState extends State<ProfilePage> {
         fetchMyFavorites(),
       ]);
 
-      if (mounted) {
-        setState(() {
-          _profile = results[0] as Map<String, dynamic>;
-          _reviewsCount = (results[1] as List).length;
-          _favoritesCount = (results[2] as List).length;
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _profile = results[0] as Map<String, dynamic>;
+        _reviewsCount = (results[1] as List).length;
+        _favoritesCount = (results[2] as List).length;
+        _isLoading = false;
+        _errorMessage = null;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
     }
+  }
+
+  void _onRetry() {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    _loadProfile();
   }
 
   Future<void> _logout() async {
     await ApiService.clearToken();
     if (!mounted) return;
-
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const Login()),
+      MaterialPageRoute(builder: (_) => const Login()),
       (route) => false,
     );
   }
@@ -80,44 +83,27 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
-      appBar: _buildAppBar(context),
-      body: _buildBody(),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            onPressed: _logout,
+            icon: const Icon(Icons.login_outlined, color: Colors.white),
+          ),
+        ],
+      ),
+      body: PageStateHandler(
+        isLoading: _isLoading,
+        errorMessage: _errorMessage,
+        onRetry: _onRetry,
+        child: _buildContent(),
+      ),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'เกิดข้อผิดพลาด\n$_errorMessage',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _isLoading = true;
-                  _errorMessage = null;
-                });
-                _loadProfile();
-              },
-              child: const Text('ลองใหม่'),
-            ),
-          ],
-        ),
-      );
-    }
-
+  Widget _buildContent() {
     final username = _profile?['username'] ?? '-';
     final email = _profile?['email'] ?? '-';
     final bio = _profile?['bio'] ?? '';
@@ -133,20 +119,7 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFCCBC),
-                  shape: BoxShape.circle,
-                ),
-                child: const CircleAvatar(
-                  radius: 50,
-                  backgroundImage: AssetImage("assets/icons/funny_emoji.png"),
-                  backgroundColor: Colors.transparent,
-                ),
-              ),
-            ),
+            _buildAvatar(),
             const SizedBox(height: 16),
             Text(
               username,
@@ -170,44 +143,37 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
             const SizedBox(height: 40),
-
-            // นำยอดจำนวนเข้าไปแสดงใน UI เดิมของคุณแล้วครับ!
-            _buildStatRow("REVIEWS", "$_reviewsCount"),
-            _buildStatRow("FAVORITES", "$_favoritesCount"),
-
+            _buildStatRow('REVIEWS', '$_reviewsCount'),
+            _buildStatRow('FAVORITES', '$_favoritesCount'),
             const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                createdAt.isNotEmpty ? "สร้างบัญชีเมื่อ: $createdAt" : "",
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+            if (createdAt.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'สร้างบัญชีเมื่อ: $createdAt',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
               ),
-            ),
             const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: _logout,
-                child: const Text(
-                  "LOG OUT",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+            _buildLogoutButton(),
             const SizedBox(height: 30),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFCCBC),
+        shape: BoxShape.circle,
+      ),
+      child: const CircleAvatar(
+        radius: 50,
+        backgroundImage: AssetImage("assets/icons/funny_emoji.png"),
+        backgroundColor: Colors.transparent,
       ),
     );
   }
@@ -245,18 +211,27 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  AppBar _buildAppBar(BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      automaticallyImplyLeading:
-          false, // ป้องกันการสร้างปุ่ม Back ตอนอยู่บน Bottom Nav
-      actions: [
-        IconButton(
-          onPressed: _logout,
-          icon: const Icon(Icons.login_outlined, color: Colors.white),
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.redAccent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
-      ],
+        onPressed: _logout,
+        child: const Text(
+          'LOG OUT',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 }
