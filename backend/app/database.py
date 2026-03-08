@@ -9,7 +9,6 @@ from pathlib import Path
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 1-create Engine connect postgres database
 engine = create_async_engine(DATABASE_URL, echo=False)
 
 SessionLocal = sessionmaker(

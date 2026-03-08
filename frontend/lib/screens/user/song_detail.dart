@@ -57,9 +57,15 @@ class _MusicDetailState extends State<MusicDetail> {
     _fetchDetailSong();
     _getPerfs();
     _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed && mounted) {
-        setState(() => _isPlaying = false);
-        _audioPlayer.seek(Duration.zero); 
+      if (mounted) {
+        setState(() {
+          _isPlaying = state.playing;
+        });
+
+        if (state.processingState == ProcessingState.completed) {
+          _audioPlayer.seek(Duration.zero);
+          _audioPlayer.pause();
+        }
       }
     });
   }
@@ -312,30 +318,28 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
-Future<void> _togglePreview() async {
-  if (songDetail?.previewUrl == null) return;
+  Future<void> _togglePreview() async {
+    if (songDetail?.previewUrl == null) return;
 
-  if (_isPlaying) {
-    await _audioPlayer.pause();
-    setState(() => _isPlaying = false);
-    return;
-  }
+    final playerState = _audioPlayer.playerState;
+    final isPlaying = playerState.playing;
 
-  try {
-    await _audioPlayer.setUrl(songDetail!.previewUrl!);
-    await _audioPlayer.seek(Duration.zero);
-    await _audioPlayer.play();
-    debugPrint('play() done — _isPlaying will be set to true');
-    if (mounted) {
-      setState(() => _isPlaying = true);
-      debugPrint('setState done — _isPlaying: $_isPlaying');
+    if (isPlaying) {
+      await _audioPlayer.pause();
     } else {
-      debugPrint('NOT mounted!');
+      try {
+        // ตรวจสอบว่าต้องโหลด URL ใหม่ไหม
+        if (_audioPlayer.audioSource == null ||
+            (_audioPlayer.audioSource as UriAudioSource).uri.toString() !=
+                songDetail!.previewUrl) {
+          await _audioPlayer.setUrl(songDetail!.previewUrl!);
+        }
+        await _audioPlayer.play();
+      } catch (e) {
+        debugPrint('Audio error: $e');
+      }
     }
-  } catch (e) {
-    debugPrint('Audio error: $e');
   }
-}
 
   bool _isReviewComplete() =>
       selectedEmotionId != null &&
