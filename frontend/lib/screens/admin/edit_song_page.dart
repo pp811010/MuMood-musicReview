@@ -58,6 +58,8 @@ class _EditSongPageState extends State<EditSongPage> {
     _linkController = TextEditingController(
       text: widget.songData['link_url'] ?? "",
     );
+    print(_linkController);
+    print(_albumController);
 
     if (widget.songData['is_custom'] == false) {
       _snapshotSpotifySong = widget.songData['name'];
@@ -133,13 +135,11 @@ class _EditSongPageState extends State<EditSongPage> {
     final currentSong = _nameController.text.trim().toLowerCase();
     final currentArtist = _artistController.text.trim().toLowerCase();
 
-    // 1. ตรวจสอบกับ Snapshot (ค่าเดิมที่โหลดมาตอนแรก)
     bool isMatchSnapshot =
         _snapshotSpotifySong != null &&
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
-    // 2. ตรวจสอบกับรายการแนะนำ (กรณีผู้ใช้พิมพ์หาจนเจอใน Spotify)
     bool isMatchSuggestions = _songObjects.any(
       (item) =>
           item['name'].toString().toLowerCase().trim() == currentSong &&
@@ -306,7 +306,6 @@ class _EditSongPageState extends State<EditSongPage> {
           focusNode: focusNode,
           isOptional: isOptional,
           onChanged: (val) {
-            // เมื่อมีการพิมพ์ใหม่ ให้ล้าง Snapshot เพื่อให้ Validate เนื้อหาใหม่ได้ทันที
             if (type == 'song' || type == 'artist') {
               if (_snapshotSpotifySong != null ||
                   _snapshotSpotifyArtist != null) {
@@ -390,7 +389,33 @@ class _EditSongPageState extends State<EditSongPage> {
             borderRadius: BorderRadius.circular(20),
             child: _newImageFile != null
                 ? Image.file(_newImageFile!, fit: BoxFit.cover)
-                : Image.network(widget.songData['image'], fit: BoxFit.cover),
+                : Image.network(
+                    widget.songData['image'],
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: const Color(0xFF2C2C2C),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image,
+                              color: Colors.white24,
+                              size: 40,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              "No Image Found",
+                              style: TextStyle(
+                                color: Colors.white24,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ),
       ),
@@ -441,7 +466,6 @@ class _EditSongPageState extends State<EditSongPage> {
           )
           .toList(),
       onChanged: (val) {
-        // หากมีการพิมพ์ใหม่ ให้ถอนการเชื่อมโยง Snapshot เพื่อให้ Validate ใหม่ได้
         setState(() => _selectedCategory = val);
       },
       decoration: InputDecoration(

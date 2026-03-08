@@ -13,22 +13,19 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  List<dynamic> dbSongs = []; // เพลงที่อยู่ใน PostgreSQL
-  List<dynamic> spotifySongs = []; // ผลการค้นหาใหม่จาก Spotify API
+  List<dynamic> dbSongs = [];
+  List<dynamic> spotifySongs = [];
   bool isLoading = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
-
-  // กำหนด IP ของ Backend (10.0.2.2 สำหรับ Android Emulator)
   static const String baseUrl = "http://10.0.2.2:8000";
 
   @override
   void initState() {
     super.initState();
-    loadSongsFromDb(); // โหลดเพลงจาก DB ทันทีเมื่อเข้าหน้า
+    loadSongsFromDb();
   }
 
-  // 1. ฟังก์ชันดึงเพลงทั้งหมดจาก DB (เรียกใช้ @router.get("/spotify/all-songs"))
   Future<void> loadSongsFromDb() async {
     setState(() => isLoading = true);
     try {
@@ -46,19 +43,17 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Future<void> fetchSongsFromSpotify(String query) async {
-    // 1. ถ้าช่องค้นหาว่าง ให้รีเซ็ตกลับไปแสดงเพลงทั้งหมดจาก DB
     if (query.trim().isEmpty) {
       setState(() {
-        spotifySongs = []; // ล้างผลการค้นหาจาก Spotify
+        spotifySongs = [];
       });
-      await loadSongsFromDb(); // ดึงเพลงทั้งหมดกลับมาโชว์ใน Tab All/Custom
+      await loadSongsFromDb();
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      // 2. เรียก API ค้นหาแบบ Hybrid (DB + Spotify)
       final response = await http.get(
         Uri.parse('$baseUrl/songs/search?q=$query'),
       );
@@ -69,7 +64,6 @@ class _InventoryPageState extends State<InventoryPage> {
         )['results'];
 
         setState(() {
-          // กรองเพลงที่ตรงตามคำค้นหามาแสดงผล
           dbSongs = searchResults.where((s) => s['source'] == 'db').toList();
           spotifySongs = searchResults
               .where((s) => s['source'] == 'spotify')
@@ -94,7 +88,7 @@ class _InventoryPageState extends State<InventoryPage> {
     try {
       final response = await http.delete(Uri.parse('$baseUrl/songs/$songId'));
       if (response.statusCode == 200) {
-        loadSongsFromDb(); // รีโหลดรายการเพลงใหม่
+        loadSongsFromDb();
         _showSnackBar("Song deleted", Colors.green);
       }
     } catch (e) {
@@ -205,17 +199,17 @@ class _InventoryPageState extends State<InventoryPage> {
               )
             : TabBarView(
                 children: [
-                  _buildMusicGrid(dbSongs, "All"), // เพลงทั้งหมดใน DB
+                  _buildMusicGrid(dbSongs, "All"),
                   _buildMusicGrid([
-                    ...spotifySongs, // ผลการค้นหาใหม่จาก API
+                    ...spotifySongs,
                     ...dbSongs
                         .where((s) => s['is_custom'] == false)
-                        .toList(), // เพลง Spotify ใน DB
-                  ], "Spotify"), // ผลการค้นหาใหม่
+                        .toList(),
+                  ], "Spotify"),
                   _buildMusicGrid(
                     dbSongs.where((s) => s['is_custom'] == true).toList(),
                     "Custom",
-                  ), // เพลงที่เพิ่มเอง
+                  ),
                 ],
               ),
       ),
@@ -277,7 +271,7 @@ class _InventoryPageState extends State<InventoryPage> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const CreatemusicPage()),
-        ).then((_) => loadSongsFromDb()); // Refresh เมื่อกลับมาจากหน้าเพิ่มเพลง
+        ).then((_) => loadSongsFromDb());
       },
       child: Container(
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
