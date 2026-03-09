@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../screens/admin/Inventory_page.dart'; // เปลี่ยนเป็น path ของคุณ
+import '../screens/admin/Inventory_page.dart';
 import '../screens/admin/profile_page.dart';   // สร้างหน้า Profile เปล่าๆ ไว้
 import './custom_bottom_nav.dart';
 

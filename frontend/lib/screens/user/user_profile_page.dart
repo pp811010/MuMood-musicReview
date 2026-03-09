@@ -25,7 +25,6 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfile();
-    // ดักรับสัญญาณรีเฟรชจากหน้าอื่น
     dataRefreshNotifier.addListener(_onDataChanged);
   }
 
@@ -37,7 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onDataChanged() {
-    if (mounted) _loadProfile(); // โหลดใหม่เมื่อมีสัญญาณ
+    if (mounted) _loadProfile();
   }
 
   Future<void> _loadProfile() async {
