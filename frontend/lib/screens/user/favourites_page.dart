@@ -80,7 +80,7 @@ class _FavoritePageState extends State<FavoritePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'เกิดข้อผิดพลาด\n$_errorMessage',
+              'Error\n$_errorMessage',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70),
             ),
@@ -93,7 +93,7 @@ class _FavoritePageState extends State<FavoritePage> {
                 });
                 _loadData();
               },
-              child: const Text('ลองใหม่'),
+              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -125,7 +125,7 @@ class _FavoritePageState extends State<FavoritePage> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _loadData,
-            color: Colors.redAccent,
+            color: Colors.white,
             backgroundColor: Colors.grey[900],
             child: _favoriteSongs.isEmpty
                 ? ListView(
@@ -135,7 +135,7 @@ class _FavoritePageState extends State<FavoritePage> {
                         height: MediaQuery.of(context).size.height * 0.5,
                         child: const Center(
                           child: Text(
-                            'ยังไม่มีเพลงโปรด',
+                            'No Favourite Song',
                             style: TextStyle(color: Colors.white54),
                           ),
                         ),

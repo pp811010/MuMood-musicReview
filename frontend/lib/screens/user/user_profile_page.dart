@@ -94,7 +94,7 @@ class _ProfilePageState extends State<ProfilePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'เกิดข้อผิดพลาด\n$_errorMessage',
+              'Error\n$_errorMessage',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70),
             ),
@@ -107,7 +107,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 });
                 _loadProfile();
               },
-              child: const Text('ลองใหม่'),
+              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -117,7 +117,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final username = _profile?['username'] ?? '-';
     final email = _profile?['email'] ?? '-';
     final bio = _profile?['bio'] ?? '';
-    final createdAt = _profile?['created_at'] ?? '';
 
     return RefreshIndicator(
       onRefresh: _loadProfile,
@@ -170,15 +169,7 @@ class _ProfilePageState extends State<ProfilePage> {
             _buildStatRow("REVIEWS", "$_reviewsCount"),
             _buildStatRow("FAVORITES", "$_favoritesCount"),
 
-            const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                createdAt.isNotEmpty ? "สร้างบัญชีเมื่อ: $createdAt" : "",
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 60),
             SizedBox(
               width: double.infinity,
               height: 50,

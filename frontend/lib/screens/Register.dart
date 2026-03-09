@@ -53,16 +53,16 @@ class _RegisterState extends State<Register> {
 
   String? _validatePassword(String password) {
     if (password.length < 8) {
-      return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
+      return "Password must be at least 8 characters long";
     }
     if (!password.contains(RegExp(r'[A-Z]'))) {
-      return "Password ต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z)";
+      return "Password must contain at least one uppercase letter (A-Z)";
     }
     if (!password.contains(RegExp(r'[a-z]'))) {
-      return "Password ต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว (a-z)";
+      return "Password must contain at least one lowercase letter (a-z)";
     }
     if (!password.contains(RegExp(r'[0-9]'))) {
-      return "Password ต้องมีตัวเลขอย่างน้อย 1 ตัว (0-9)";
+      return "Password must contain at least one number (0-9)";
     }
     return null;
   }
@@ -77,7 +77,7 @@ class _RegisterState extends State<Register> {
 
     if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
       _showMessage(
-        "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
+        "Please enter a valid email address (must contain @ and end with .com)",
         isError: true,
       );
       return;
@@ -106,7 +106,6 @@ class _RegisterState extends State<Register> {
     final url = Uri.parse('http://10.0.2.2:8000/users/register/');
 
     String autoUsername = _emailController.text.split('@')[0];
-    String bioValue = _bioController.text.isEmpty ? "-" : _bioController.text;
     String genreString = _selectedGenres.join(', ');
 
     try {
@@ -118,7 +117,6 @@ class _RegisterState extends State<Register> {
           'password': _passwordController.text,
           'username': autoUsername,
           'favorite_genres': genreString,
-          'bio': bioValue,
         }),
       );
 
@@ -188,7 +186,7 @@ class _RegisterState extends State<Register> {
               const Padding(
                 padding: EdgeInsets.only(top: 6, left: 4),
                 child: Text(
-                  'อย่างน้อย 8 ตัว • มีพิมพ์ใหญ่-เล็ก • มีตัวเลข',
+                  'At least 8 chars • Upper & lowercase • Number',
                   style: TextStyle(color: Colors.white38, fontSize: 11),
                 ),
               ),

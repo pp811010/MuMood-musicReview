@@ -56,16 +56,16 @@ class _LoginState extends State<Login> {
 
   String? _validatePassword(String password) {
     if (password.length < 8) {
-      return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
+      return "Password must be at least 8 characters long";
     }
     if (!password.contains(RegExp(r'[A-Z]'))) {
-      return "Password ต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z)";
+      return "Password must contain at least one uppercase letter (A-Z)";
     }
     if (!password.contains(RegExp(r'[a-z]'))) {
-      return "Password ต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว (a-z)";
+      return "Password must contain at least one lowercase letter (a-z)";
     }
     if (!password.contains(RegExp(r'[0-9]'))) {
-      return "Password ต้องมีตัวเลขอย่างน้อย 1 ตัว (0-9)";
+      return "Password must contain at least one number (0-9)";
     }
     return null;
   }
@@ -83,9 +83,7 @@ class _LoginState extends State<Login> {
 
     final email = _emailController.text.trim();
     if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
-      _showErrorSnackBar(
-        "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
-      );
+      _showErrorSnackBar("Please enter a valid email address");
       return;
     }
 

@@ -15,6 +15,15 @@ class TrendingList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('--- Trending Songs Data ---');
+    for (var song in trendingSongs) {
+      debugPrint('ID: ${song['id']}, Title: ${song['title']}');
+    }
+    debugPrint('---------------------------');
+
+    if (isLoading) {
+      return TrendingListShimmer(itemCount: 5);
+    }
     if (isLoading) {
       return TrendingListShimmer(itemCount: 5);
     }

@@ -21,7 +21,7 @@ class _HomeState extends State<Home> {
 
   String _selectedGenre = 'All';
   List<Map<String, String>> _thtrendingSongs = [];
-   List<Map<String, String>> _ustrendingSongs = [];
+  List<Map<String, String>> _ustrendingSongs = [];
   bool _isLoadingTrending = false;
 
   List<Music> _genreSongs = [];
@@ -44,11 +44,13 @@ class _HomeState extends State<Home> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         final List<dynamic> thCharts = data['charts']['TH'] ?? [];
-        final List<dynamic> engCharts = data['charts']['EN'] ?? [];
+        final List<dynamic> usCharts = data['charts']['US'] ?? [];
+
         setState(() {
           _thtrendingSongs = thCharts
               .map<Map<String, String>>(
                 (item) => {
+                  'id': item['id']?.toString() ?? '',
                   'title': item['song_name']?.toString() ?? '',
                   'artist': item['artist_name']?.toString() ?? '',
                   'image': item['song_cover_url']?.toString() ?? '',
@@ -56,9 +58,10 @@ class _HomeState extends State<Home> {
               )
               .toList();
 
-          _ustrendingSongs = engCharts
+          _ustrendingSongs = usCharts
               .map<Map<String, String>>(
                 (item) => {
+                  'id': item['id']?.toString() ?? '',
                   'title': item['song_name']?.toString() ?? '',
                   'artist': item['artist_name']?.toString() ?? '',
                   'image': item['song_cover_url']?.toString() ?? '',
@@ -144,13 +147,18 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     final bool isSearching = _searchController.text.isNotEmpty;
 
-
     final defaultContent = [
       _buildCategories(),
       _buildSectionTitle("TRENDING 2025 IN SPOTIFY (TH)"),
-      TrendingList(trendingSongs: _thtrendingSongs, isLoading: _isLoadingTrending),
-      _buildSectionTitle("TRENDING 2025 IN SPOTIFY (EN)"),
-      TrendingList(trendingSongs: _ustrendingSongs, isLoading: _isLoadingTrending),
+      TrendingList(
+        trendingSongs: _thtrendingSongs,
+        isLoading: _isLoadingTrending,
+      ),
+      _buildSectionTitle("TRENDING 2025 IN SPOTIFY (US)"),
+      TrendingList(
+        trendingSongs: _ustrendingSongs,
+        isLoading: _isLoadingTrending,
+      ),
       _buildGenreTracksHeader(),
     ];
 
@@ -192,7 +200,11 @@ class _HomeState extends State<Home> {
               color: Colors.white,
             ),
           ),
-          const Icon(Icons.bubble_chart_outlined, color: Colors.white, size: 18),
+          const Icon(
+            Icons.bubble_chart_outlined,
+            color: Colors.white,
+            size: 18,
+          ),
         ],
       ),
     );
@@ -277,7 +289,10 @@ class _HomeState extends State<Home> {
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 15,
+        ),
         suffixIcon: controller.text.isNotEmpty
             ? IconButton(
                 icon: const Icon(Icons.clear, color: Colors.white),
@@ -293,8 +308,17 @@ class _HomeState extends State<Home> {
 
   Widget _buildCategories() {
     const cats = [
-      'All', 'Pop', 'Rock', 'Hip Hop', 'R&B',
-      'Jazz', 'K-Pop', 'Indie', 'Classical', 'Metal', 'EDM',
+      'All',
+      'Pop',
+      'Rock',
+      'Hip Hop',
+      'R&B',
+      'Jazz',
+      'K-Pop',
+      'Indie',
+      'Classical',
+      'Metal',
+      'EDM',
     ];
     return Wrap(
       spacing: 8.0,

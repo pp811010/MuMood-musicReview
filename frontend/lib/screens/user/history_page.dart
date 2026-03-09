@@ -143,7 +143,7 @@ class _HistoryPageState extends State<HistoryPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'เกิดข้อผิดพลาด\n$_errorMessage',
+              'Error\n$_errorMessage',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white70),
             ),
@@ -156,7 +156,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 });
                 _loadData();
               },
-              child: const Text('ลองใหม่'),
+              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -198,7 +198,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         height: MediaQuery.of(context).size.height * 0.5,
                         child: const Center(
                           child: Text(
-                            'ยังไม่มีประวัติ Review หรือ Comment',
+                            'No Review or Comment',
                             style: TextStyle(color: Colors.white54),
                           ),
                         ),
@@ -222,7 +222,7 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget _buildHistoryCard(_HistoryEntry entry) {
     final songData = _songCache[entry.songId];
     final coverUrl = songData?.image;
-    final songName = songData?.songName ?? 'ไม่ทราบชื่อเพลง';
+    final songName = songData?.songName ?? 'Unknow Song Name';
     final artistName = songData?.artistName ?? '';
 
     final beatScore = entry.reviewData != null
@@ -323,7 +323,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         )
                       else
                         Text(
-                          'ยังไม่ได้ review เพลงนี้',
+                          'This song hasn\'t been reviewed yet',
                           style: TextStyle(color: Colors.white30, fontSize: 12),
                         ),
                     ],
@@ -332,7 +332,6 @@ class _HistoryPageState extends State<HistoryPage> {
               ],
             ),
 
-            // ── Comment hint ──────────────────────────────────────────
             if (entry.commentCount > 0) ...[
               const SizedBox(height: 10),
               Container(
@@ -353,7 +352,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'คุณมี ${entry.commentCount} comment ในเพลงนี้ • แตะเพื่อดู',
+                      'You have ${entry.commentCount} comment on this song • Tap to view',
                       style: const TextStyle(
                         color: Colors.white38,
                         fontSize: 11,
@@ -365,8 +364,8 @@ class _HistoryPageState extends State<HistoryPage> {
             ] else ...[
               const SizedBox(height: 8),
               const Text(
-                'ยังไม่มี comment • แตะเพื่อเพิ่ม',
-                style: TextStyle(color: Colors.white24, fontSize: 11),
+                'No comment yet • Tap to comment',
+                style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
             ],
           ],
@@ -374,8 +373,6 @@ class _HistoryPageState extends State<HistoryPage> {
       ),
     );
   }
-
-  // ─── Helpers ───────────────────────────────────────────────────────────────
 
   Widget _typeBadge({
     required String label,
