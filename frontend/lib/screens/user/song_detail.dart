@@ -13,7 +13,6 @@ import 'package:frontend/widgets/emotion_chip.dart';
 import 'package:frontend/widgets/score_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class MusicDetail extends StatefulWidget {
   final String id;
@@ -951,7 +950,6 @@ class _MusicDetailState extends State<MusicDetail> {
 
   Widget _buildCommentItem(CommentItem comment) {
     String timeAgo = '';
-    debugPrint(_comments);
 
     try {
       final dt = DateTime.parse(comment.createdAt).toLocal();
