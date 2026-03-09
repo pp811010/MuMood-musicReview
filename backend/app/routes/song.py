@@ -83,13 +83,8 @@ async def search_songs(q: str, db: SessionDep):
 @router.post("/", response_model=SongResponse)
 async def create_song(song: SongCreate, db: SessionDep):
     song_data = song.model_dump()
-
-    if not song_data.get("preview_url"):
-        song_data["preview_url"] = await fetch_deezer_preview(
-            song_name=song_data.get("song_name", ""),
-            artist_name=song_data.get("artist_name", ""),
-        )
-
+    
+        
     db_song = Song(**song_data)
     db.add(db_song)
     await db.commit()

@@ -10,7 +10,7 @@ class TrendingCardShimmer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 10),
       child: SizedBox(
-        height: 220, // ต้องกำหนด height เหมือน TrendingList
+        height: 220,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           itemCount: itemCount,

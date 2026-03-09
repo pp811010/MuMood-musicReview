@@ -123,15 +123,30 @@ class _EditSongPageState extends State<EditSongPage> {
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
-    final isMatchSuggestions = _songObjects.any(
+    if (isMatchSnapshot) {
+      _showSnackBar(
+        "This song is already available on Spotify or Database, so no further editing is needed.",
+        Colors.orange,
+      );
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+    final freshResult = await fetchMetadataSuggestions(
+      _nameController.text.trim(),
+    );
+    setState(() => _isProcessing = false);
+
+    final freshSongs = freshResult['songs'] as List<Map<String, dynamic>>;
+    final isMatchDb = freshSongs.any(
       (item) =>
           item['name'].toString().toLowerCase().trim() == currentSong &&
           item['artist'].toString().toLowerCase().trim() == currentArtist,
     );
 
-    if (isMatchSnapshot || isMatchSuggestions) {
+    if (isMatchDb) {
       _showSnackBar(
-        "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องแก้ไขให้ซ้ำซ้อน",
+        "This song is already available on Spotify or Database, so no further editing is needed.",
         Colors.orange,
       );
       return;
@@ -297,7 +312,6 @@ class _EditSongPageState extends State<EditSongPage> {
           focusNode: focusNode,
           isOptional: isOptional,
           onChanged: (val) {
-            // Reset snapshot เมื่อผู้ใช้แก้ชื่อเพลง/ศิลปิน
             if ((type == 'song' || type == 'artist') &&
                 (_snapshotSpotifySong != null ||
                     _snapshotSpotifyArtist != null)) {
