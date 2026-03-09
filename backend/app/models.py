@@ -1,12 +1,23 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Text, DateTime, Index
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    Boolean,
+    ForeignKey,
+    Text,
+    DateTime,
+    Index,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from sqlalchemy import DateTime
 from app.database import Base
 
-# ใช้ฟังก์ชันช่วยเพื่อให้ได้เวลา UTC แบบมาตรฐาน
+
 def get_now_utc():
     return datetime.now(timezone.utc)
+
 
 class User(Base):
     __tablename__ = "users"
@@ -20,8 +31,15 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
     is_active = Column(Boolean, default=True)
 
-    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
-    favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
+    reviews = relationship(
+        "Review", back_populates="user", cascade="all, delete-orphan"
+    )
+    favorites = relationship(
+        "Favorite", back_populates="user", cascade="all, delete-orphan"
+    )
+    comments = relationship(
+        "Comment", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Song(Base):
@@ -37,9 +55,19 @@ class Song(Base):
     link_url = Column(String, nullable=True)
     is_custom_added = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
-    updated_at = Column(DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc)
-    reviews = relationship("Review", back_populates="song", cascade="all, delete-orphan")
-    favorited_by = relationship("Favorite", back_populates="song", cascade="all, delete-orphan")
+    updated_at = Column(
+        DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc
+    )
+
+    reviews = relationship(
+        "Review", back_populates="song", cascade="all, delete-orphan"
+    )
+    favorited_by = relationship(
+        "Favorite", back_populates="song", cascade="all, delete-orphan"
+    )
+    comments = relationship(
+        "Comment", back_populates="song", cascade="all, delete-orphan"
+    )
 
 
 class Emotion(Base):
@@ -49,8 +77,10 @@ class Emotion(Base):
     name = Column(String, nullable=False)
     reviews = relationship("Review", back_populates="emotion")
 
+
 class MoodColor(Base):
     __tablename__ = "mood_colors"
+
     id = Column(Integer, primary_key=True, index=True)
     color_name = Column(String)
     color_hex = Column(String)
@@ -58,20 +88,29 @@ class MoodColor(Base):
 
 
 class Review(Base):
+    """
+    Review เก็บแค่ scores + emotion + mood_color
+    comment ถูกแยกออกไปอยู่ใน Comment model แล้ว
+    """
+
     __tablename__ = "reviews"
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    song_id = Column(
+        Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False
+    )
     emotion_id = Column(Integer, ForeignKey("emotions.id"), nullable=True)
     mood_color_id = Column(Integer, ForeignKey("mood_colors.id"), nullable=True)
-    
-    beat_score = Column(Float, nullable=True) 
+
+    beat_score = Column(Float, nullable=True)
     lyric_score = Column(Float, nullable=True)
-    mood_score = Column(Float, nullable=True) 
-    comment = Column(Text, nullable=True)  
-    
+    mood_score = Column(Float, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
-    updated_at = Column(DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc)
+    updated_at = Column(
+        DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc
+    )
 
     user = relationship("User", back_populates="reviews")
     song = relationship("Song", back_populates="reviews")
@@ -79,13 +118,37 @@ class Review(Base):
     mood_color = relationship("MoodColor", back_populates="reviews")
 
 
+class Comment(Base):
+    """
+    Comment แยกจาก Review — user คอมเมนต์ได้หลายครั้ง, แก้ไขได้, ลบได้
+    """
+
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    song_id = Column(
+        Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False
+    )
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=get_now_utc)
+    updated_at = Column(
+        DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc
+    )
+
+    user = relationship("User", back_populates="comments")
+    song = relationship("Song", back_populates="comments")
+
+
 class Favorite(Base):
     __tablename__ = "favorites"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
-    created_at =  Column(DateTime(timezone=True), default=get_now_utc)
+    song_id = Column(
+        Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at = Column(DateTime(timezone=True), default=get_now_utc)
 
     user = relationship("User", back_populates="favorites")
     song = relationship("Song", back_populates="favorited_by")
