@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/user/song_detail.dart';
-import 'package:frontend/widgets/tranding_card_shimmer.dart';
+import 'package:frontend/widgets/no_tracks_found.dart';
+import 'package:frontend/widgets/tranding_list_shimmer.dart';
 
 class TrendingList extends StatelessWidget {
   final List<Map<String, String>> trendingSongs;
@@ -15,7 +16,11 @@ class TrendingList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return TrendingCardShimmer(itemCount: 5);
+      return TrendingListShimmer(itemCount: 5);
+    }
+
+    if (trendingSongs.isEmpty) {
+      return const NoTracksFound();
     }
 
     return Padding(

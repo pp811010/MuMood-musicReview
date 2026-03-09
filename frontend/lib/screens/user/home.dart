@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:frontend/core/api_client.dart';
+import 'package:frontend/widgets/no_tracks_found.dart';
 import 'package:frontend/widgets/song_card.dart';
 import 'package:frontend/widgets/song_card_shimmer.dart';
 import 'package:frontend/widgets/trending_list.dart';
@@ -362,7 +363,7 @@ class _HomeState extends State<Home> {
     return Column(
       children: [
         if (displayMusic.isEmpty)
-          _buildEmptyState()
+          NoTracksFound()
         else
           GridView.builder(
             shrinkWrap: true,
@@ -382,25 +383,5 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 50),
-      width: double.infinity,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.music_off_outlined, size: 80, color: Colors.white10),
-          const SizedBox(height: 16),
-          Text(
-            "No tracks found",
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 }

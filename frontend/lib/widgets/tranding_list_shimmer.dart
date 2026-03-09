@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-class TrendingCardShimmer extends StatelessWidget {
+class TrendingListShimmer extends StatelessWidget {
   final int itemCount;
-  const TrendingCardShimmer({super.key, this.itemCount = 4});
+  const TrendingListShimmer({super.key, this.itemCount = 4});
 
   @override
   Widget build(BuildContext context) {
