@@ -162,6 +162,8 @@ async def get_song_detail(
         comments_result = await db.execute(comments_stmt)
         comments = comments_result.scalars().all()
 
+        print(comments)
+
         beat_scores = [r.beat_score for r in reviews if r.beat_score is not None]
         lyric_scores = [r.lyric_score for r in reviews if r.lyric_score is not None]
         mood_scores = [r.mood_score for r in reviews if r.mood_score is not None]

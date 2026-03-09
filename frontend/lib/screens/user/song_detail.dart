@@ -951,6 +951,8 @@ class _MusicDetailState extends State<MusicDetail> {
 
   Widget _buildCommentItem(CommentItem comment) {
     String timeAgo = '';
+    debugPrint(_comments);
+
     try {
       final dt = DateTime.parse(comment.createdAt).toLocal();
       final diff = DateTime.now().difference(dt);

@@ -154,6 +154,7 @@ async def get_comments_by_song(
     """
     ดึง comments ทั้งหมดของเพลง (เรียงจากใหม่ → เก่า)
     """
+    print(song_id)
     stmt = (
         select(Comment)
         .where(Comment.song_id == song_id)
