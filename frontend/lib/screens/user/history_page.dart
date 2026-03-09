@@ -6,6 +6,23 @@ import '../../services/song_service.dart';
 import '../../models/song_detail.dart';
 import '../user/song_detail.dart';
 
+// ─── Model สำหรับ card แต่ละใบใน history ──────────────────────────────────
+class _HistoryEntry {
+  final String songId;
+  final bool hasReview;
+  final Map<String, dynamic>? reviewData; // beat/lyric/mood score
+  final int commentCount;
+
+  const _HistoryEntry({
+    required this.songId,
+    required this.hasReview,
+    this.reviewData,
+    required this.commentCount,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -14,7 +31,7 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  List<Map<String, dynamic>> _reviews = [];
+  List<_HistoryEntry> _entries = [];
   Map<String, dynamic>? _profile;
   final Map<String, SongDetail> _songCache = {};
   bool _isLoading = true;
@@ -39,37 +56,70 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadData() async {
     try {
+      // ── โหลด profile + review + comment history พร้อมกัน ──
       final results = await Future.wait([
         ApiService.getProfile(),
         fetchMyReviews(),
+        fetchMyCommentHistory(),
       ]);
 
-      if (mounted) {
-        final profile = results[0] as Map<String, dynamic>;
-        final reviews = (results[1] as List).cast<Map<String, dynamic>>();
+      final profile = results[0] as Map<String, dynamic>;
+      final reviews = (results[1] as List).cast<Map<String, dynamic>>();
+      final commentGroups = (results[2] as List).cast<Map<String, dynamic>>();
 
-        final uniqueSongIds = reviews
-            .map((r) => r['song_id'].toString())
-            .toSet();
+      // ── Map: song_id → review data ──
+      final reviewBySongId = <String, Map<String, dynamic>>{};
+      for (final r in reviews) {
+        reviewBySongId[r['song_id'].toString()] = r;
+      }
 
-        await Future.wait(
-          uniqueSongIds.map((id) async {
-            if (!_songCache.containsKey(id)) {
-              try {
-                final songData = await fetchDetailSong(id);
-                if (songData != null) _songCache[id] = songData;
-              } catch (_) {}
-            }
-          }),
-        );
+      // ── Map: song_id → comment count ──
+      final commentCountBySongId = <String, int>{};
+      for (final g in commentGroups) {
+        commentCountBySongId[g['song_id'].toString()] = g['count'] as int;
+      }
 
-        if (mounted) {
-          setState(() {
-            _profile = profile;
-            _reviews = reviews;
-            _isLoading = false;
+      // ── Merge: union ของ song_id จากทั้ง 2 source ──
+      final allSongIds = <String>{
+        ...reviewBySongId.keys,
+        ...commentCountBySongId.keys,
+      };
+
+      // ── โหลด song detail สำหรับทุก song_id ──
+      await Future.wait(
+        allSongIds.map((id) async {
+          if (!_songCache.containsKey(id)) {
+            try {
+              final songData = await fetchDetailSong(id);
+              if (songData != null) _songCache[id] = songData;
+            } catch (_) {}
+          }
+        }),
+      );
+
+      // ── สร้าง entries เรียง: มี review ก่อน, จากนั้น comment-only ──
+      final entries =
+          allSongIds.map((id) {
+            return _HistoryEntry(
+              songId: id,
+              hasReview: reviewBySongId.containsKey(id),
+              reviewData: reviewBySongId[id],
+              commentCount: commentCountBySongId[id] ?? 0,
+            );
+          }).toList()..sort((a, b) {
+            // review+comment > review only > comment only
+            final aScore = (a.hasReview ? 2 : 0) + (a.commentCount > 0 ? 1 : 0);
+            final bScore = (b.hasReview ? 2 : 0) + (b.commentCount > 0 ? 1 : 0);
+            return bScore.compareTo(aScore);
           });
-        }
+
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _entries = entries;
+          _isLoading = false;
+          _errorMessage = null;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -80,6 +130,8 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
   }
+
+  // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +185,7 @@ class _HistoryPageState extends State<HistoryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "HISTORY (${_reviews.length})",
+                "HISTORY (${_entries.length})",
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -150,7 +202,7 @@ class _HistoryPageState extends State<HistoryPage> {
             onRefresh: _loadData,
             color: Colors.white,
             backgroundColor: Colors.grey[900],
-            child: _reviews.isEmpty
+            child: _entries.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
@@ -158,7 +210,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         height: MediaQuery.of(context).size.height * 0.5,
                         child: const Center(
                           child: Text(
-                            'ยังไม่มีประวัติการรีวิว',
+                            'ยังไม่มีประวัติ Review หรือ Comment',
                             style: TextStyle(color: Colors.white54),
                           ),
                         ),
@@ -168,9 +220,9 @@ class _HistoryPageState extends State<HistoryPage> {
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    itemCount: _reviews.length,
+                    itemCount: _entries.length,
                     itemBuilder: (context, index) {
-                      return _buildReviewCard(_reviews[index]);
+                      return _buildHistoryCard(_entries[index]);
                     },
                   ),
           ),
@@ -179,22 +231,31 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildReviewCard(Map<String, dynamic> review) {
-    final beatScore = (review['beat_score'] ?? 0.0).toStringAsFixed(1);
-    final lyricScore = (review['lyric_score'] ?? 0.0).toStringAsFixed(1);
-    final moodScore = (review['mood_score'] ?? 0.0).toStringAsFixed(1);
-    final songId = review['song_id']?.toString() ?? '';
+  // ─── Card ──────────────────────────────────────────────────────────────────
 
-    final songData = _songCache[songId];
+  Widget _buildHistoryCard(_HistoryEntry entry) {
+    final songData = _songCache[entry.songId];
     final coverUrl = songData?.image;
     final songName = songData?.songName ?? 'ไม่ทราบชื่อเพลง';
     final artistName = songData?.artistName ?? '';
+
+    final beatScore = entry.reviewData != null
+        ? (entry.reviewData!['beat_score'] ?? 0.0).toStringAsFixed(1)
+        : null;
+    final lyricScore = entry.reviewData != null
+        ? (entry.reviewData!['lyric_score'] ?? 0.0).toStringAsFixed(1)
+        : null;
+    final moodScore = entry.reviewData != null
+        ? (entry.reviewData!['mood_score'] ?? 0.0).toStringAsFixed(1)
+        : null;
 
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => MusicDetail(id: songId)),
+          MaterialPageRoute(
+            builder: (context) => MusicDetail(id: entry.songId),
+          ),
         );
         _loadData();
       },
@@ -205,59 +266,168 @@ class _HistoryPageState extends State<HistoryPage> {
           color: const Color(0xFF2C2C2C),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: coverUrl != null && coverUrl.isNotEmpty
-                  ? Image.network(
-                      coverUrl,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholderCover(),
-                    )
-                  : _placeholderCover(),
+            // ── Badges ────────────────────────────────────────────────
+            Row(
+              children: [
+                _typeBadge(
+                  label: 'Review',
+                  icon: Icons.star_rounded,
+                  color: const Color(0xFFFFD700),
+                  active: entry.hasReview,
+                ),
+                const SizedBox(width: 8),
+                _typeBadge(
+                  label: entry.commentCount > 0
+                      ? 'Comment (${entry.commentCount})'
+                      : 'Comment',
+                  icon: Icons.chat_bubble_rounded,
+                  color: const Color(0xFF64B5F6),
+                  active: entry.commentCount > 0,
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    songName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    artistName,
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            const SizedBox(height: 12),
+
+            // ── Song info ─────────────────────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: coverUrl != null && coverUrl.isNotEmpty
+                      ? Image.network(
+                          coverUrl,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _placeholderCover(),
+                        )
+                      : _placeholderCover(),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _scoreItem("Beat", beatScore),
-                      _scoreItem("Lyric", lyricScore),
-                      _scoreItem("Mood", moodScore),
+                      Text(
+                        songName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        artistName,
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Scores (เฉพาะเมื่อมี review) ────────────────
+                      if (entry.hasReview && beatScore != null)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _scoreItem("Beat", beatScore),
+                            _scoreItem("Lyric", lyricScore!),
+                            _scoreItem("Mood", moodScore!),
+                          ],
+                        )
+                      else
+                        // comment-only: ไม่มี score แสดง placeholder
+                        Text(
+                          'ยังไม่ได้ review เพลงนี้',
+                          style: TextStyle(color: Colors.white30, fontSize: 12),
+                        ),
                     ],
                   ),
-                  // ── comment ถูกแยกออกไปแล้ว ไม่แสดงใน history card ──
-                  // ถ้าต้องการดู comment ให้กดเข้าไปใน song detail
-                  const SizedBox(height: 4),
-                  Text(
-                    "Tap to view comments",
-                    style: TextStyle(color: Colors.white24, fontSize: 11),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
+
+            // ── Comment hint ──────────────────────────────────────────
+            if (entry.commentCount > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.chat_bubble_outline,
+                      color: Colors.white38,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'คุณมี ${entry.commentCount} comment ในเพลงนี้ • แตะเพื่อดู',
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              const Text(
+                'ยังไม่มี comment • แตะเพื่อเพิ่ม',
+                style: TextStyle(color: Colors.white24, fontSize: 11),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  Widget _typeBadge({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool active,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: active
+            ? color.withOpacity(0.15)
+            : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: active ? color.withOpacity(0.6) : Colors.white12,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: active ? color : Colors.white24),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: active ? color : Colors.white24,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
