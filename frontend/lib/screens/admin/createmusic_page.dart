@@ -94,27 +94,49 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   Future<void> _createSong() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ป้องกันการโกง: เทียบกับ Snapshot Spotify (Case-Insensitive)
+    if (_imageFile == null) {
+      _showSnackBar("Please select a song cover image.", Colors.orange);
+      return;
+    }
+    if (_selectedCategory == null) {
+      _showSnackBar("Please select a category.", Colors.orange);
+      return;
+    }
+
     final currentSong = _songNameController.text.trim().toLowerCase();
     final currentArtist = _artistNameController.text.trim().toLowerCase();
-    final isMatchSpotify =
+
+    final isMatchSnapshot =
         _snapshotSpotifySong != null &&
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
-    if (isMatchSpotify) {
+    if (isMatchSnapshot) {
       _showSnackBar(
-        "เพลงนี้มีอยู่ใน Spotify แล้ว ไม่จำเป็นต้องเพิ่มแบบ Custom",
+        "This song is already available on Spotify or Database.",
         Colors.orange,
       );
       return;
     }
-    if (_imageFile == null) {
-      _showSnackBar("Please select a song cover image", Colors.orange);
-      return;
-    }
-    if (_selectedCategory == null) {
-      _showSnackBar("Please select a category", Colors.orange);
+
+    setState(() => _isUploading = true);
+    final freshResult = await fetchMetadataSuggestions(
+      _songNameController.text.trim(),
+    );
+    setState(() => _isUploading = false);
+
+    final freshSongs = freshResult['songs'] as List<Map<String, dynamic>>;
+    final isMatchDb = freshSongs.any(
+      (item) =>
+          item['name'].toString().toLowerCase().trim() == currentSong &&
+          item['artist'].toString().toLowerCase().trim() == currentArtist,
+    );
+
+    if (isMatchDb) {
+      _showSnackBar(
+        "This song is already available on Spotify or Database.",
+        Colors.orange,
+      );
       return;
     }
 
