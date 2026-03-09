@@ -16,10 +16,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _reviews = [];
   Map<String, dynamic>? _profile;
-
-  // เปลี่ยนประเภทตัวแปรให้ตรงกับ Model
   final Map<String, SongDetail> _songCache = {};
-
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -54,14 +51,13 @@ class _HistoryPageState extends State<HistoryPage> {
         final uniqueSongIds = reviews
             .map((r) => r['song_id'].toString())
             .toSet();
+
         await Future.wait(
           uniqueSongIds.map((id) async {
             if (!_songCache.containsKey(id)) {
               try {
                 final songData = await fetchDetailSong(id);
-                if (songData != null) {
-                  _songCache[id] = songData;
-                }
+                if (songData != null) _songCache[id] = songData;
               } catch (_) {}
             }
           }),
@@ -187,30 +183,19 @@ class _HistoryPageState extends State<HistoryPage> {
     final beatScore = (review['beat_score'] ?? 0.0).toStringAsFixed(1);
     final lyricScore = (review['lyric_score'] ?? 0.0).toStringAsFixed(1);
     final moodScore = (review['mood_score'] ?? 0.0).toStringAsFixed(1);
-    final comment = review['comment'] ?? '';
     final songId = review['song_id']?.toString() ?? '';
 
     final songData = _songCache[songId];
-    final coverUrl = songData?.image; // อิงค่าตาม Model ของคุณ
+    final coverUrl = songData?.image;
     final songName = songData?.songName ?? 'ไม่ทราบชื่อเพลง';
     final artistName = songData?.artistName ?? '';
 
     return GestureDetector(
-      // onTap: () async {
-      //   if (songId.isEmpty) return;
-
-      //   await Navigator.push(
-      //     context,
-      //     MaterialPageRoute(builder: (context) => MusicDetail(id: songId)),
-      //   );
-      //   _loadData(); // รีเฟรชเมื่อกลับมา
-      // },
       onTap: () async {
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => MusicDetail(id: songId)),
         );
-
         _loadData();
       },
       child: Container(
@@ -261,24 +246,13 @@ class _HistoryPageState extends State<HistoryPage> {
                       _scoreItem("Mood", moodScore),
                     ],
                   ),
-                  if (comment.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black26,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '"$comment"',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ],
+                  // ── comment ถูกแยกออกไปแล้ว ไม่แสดงใน history card ──
+                  // ถ้าต้องการดู comment ให้กดเข้าไปใน song detail
+                  const SizedBox(height: 4),
+                  Text(
+                    "Tap to view comments",
+                    style: TextStyle(color: Colors.white24, fontSize: 11),
+                  ),
                 ],
               ),
             ),
