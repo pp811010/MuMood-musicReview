@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:audioplayers/audioplayers.dart';
-import 'dart:convert';
+import 'package:frontend/services/song_service.dart';
+import 'package:frontend/widgets/song_form/add_music_card.dart';
+import 'package:frontend/widgets/song_form/music_card.dart';
 import 'createmusic_page.dart';
 import 'edit_song_page.dart';
 
@@ -16,94 +16,67 @@ class _InventoryPageState extends State<InventoryPage> {
   List<dynamic> dbSongs = [];
   List<dynamic> spotifySongs = [];
   bool isLoading = false;
-  final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
+
   static const String baseUrl = "http://10.0.2.2:8000";
 
   @override
   void initState() {
     super.initState();
-    loadSongsFromDb();
+    _loadFromDb();
   }
 
-  Future<void> loadSongsFromDb() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFromDb() async {
     setState(() => isLoading = true);
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/songs/db/all-songs'));
-      if (response.statusCode == 200) {
-        setState(() {
-          dbSongs = json.decode(response.body)['results'];
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      debugPrint("Error loading from DB: $e");
+    final results = await loadAllSongs();
+    setState(() {
+      dbSongs = results;
+      spotifySongs = [];
+      isLoading = false;
+    });
+  }
+
+  Future<void> _onSearch(String query) async {
+    if (query.trim().isEmpty) {
+      await _loadFromDb();
+      return;
     }
+    setState(() => isLoading = true);
+    final results = await searchSongs(query);
+    setState(() {
+      dbSongs = results['db']!;
+      spotifySongs = results['spotify']!;
+      isLoading = false;
+    });
   }
 
   Future<void> _onRefresh() async {
     final query = _searchController.text.trim();
-    if (query.isNotEmpty) {
-      await fetchSongsFromSpotify(query);
-    } else {
-      await loadSongsFromDb();
-    }
-  }
-
-  Future<void> fetchSongsFromSpotify(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() {
-        spotifySongs = [];
-      });
-      await loadSongsFromDb();
-      return;
-    }
-
-    setState(() => isLoading = true);
-
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/songs/search?q=$query'),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> searchResults = json.decode(
-          response.body,
-        )['results'];
-
-        setState(() {
-          dbSongs = searchResults.where((s) => s['source'] == 'db').toList();
-          spotifySongs = searchResults
-              .where((s) => s['source'] == 'spotify')
-              .toList();
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      debugPrint("Search error: $e");
-    }
+    query.isNotEmpty ? await _onSearch(query) : await _loadFromDb();
   }
 
   Future<void> _deleteSongQuickly(int songId) async {
-    bool confirm = await _showConfirmDialog(
+    final confirm = await _showConfirmDialog(
       "Delete Song",
       "Are you sure you want to remove this song?",
     );
     if (!confirm) return;
 
     setState(() => isLoading = true);
-    try {
-      final response = await http.delete(Uri.parse('$baseUrl/songs/$songId'));
-      if (response.statusCode == 200) {
-        loadSongsFromDb();
-        _showSnackBar("Song deleted", Colors.green);
-      }
-    } catch (e) {
+    final result = await deleteSong(songId);
+    setState(() => isLoading = false);
+
+    if (result.isSuccess) {
+      _showSnackBar("Song deleted", Colors.green);
+      _loadFromDb();
+    } else {
       _showSnackBar("Error deleting song", Colors.red);
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
@@ -120,7 +93,10 @@ class _InventoryPageState extends State<InventoryPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text("Cancel", style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
@@ -136,16 +112,9 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _showSnackBar(String msg, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
-  }
-
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    _searchController.dispose();
-    super.dispose();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   @override
@@ -173,7 +142,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 prefixIcon: Icon(Icons.search, color: Colors.white38),
                 border: InputBorder.none,
               ),
-              onSubmitted: (value) => fetchSongsFromSpotify(value),
+              onSubmitted: _onSearch,
             ),
           ),
           bottom: PreferredSize(
@@ -210,9 +179,7 @@ class _InventoryPageState extends State<InventoryPage> {
                   _buildMusicGrid(dbSongs, "All"),
                   _buildMusicGrid([
                     ...spotifySongs,
-                    ...dbSongs
-                        .where((s) => s['is_custom'] == false)
-                        .toList(),
+                    ...dbSongs.where((s) => s['is_custom'] == false).toList(),
                   ], "Spotify"),
                   _buildMusicGrid(
                     dbSongs.where((s) => s['is_custom'] == true).toList(),
@@ -224,13 +191,11 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  Widget _buildMusicGrid(List<dynamic> displaySongs, String type) {
-    bool showAddButton = (type == "All" || type == "Custom");
-    int itemCount = showAddButton
-        ? displaySongs.length + 1
-        : displaySongs.length;
+  Widget _buildMusicGrid(List<dynamic> songs, String type) {
+    final bool showAddButton = type == "All" || type == "Custom";
+    final int itemCount = showAddButton ? songs.length + 1 : songs.length;
 
-    if (displaySongs.isEmpty && !showAddButton) {
+    if (songs.isEmpty && !showAddButton) {
       return RefreshIndicator(
         onRefresh: _onRefresh,
         color: Colors.green,
@@ -265,139 +230,41 @@ class _InventoryPageState extends State<InventoryPage> {
         ),
         itemCount: itemCount,
         itemBuilder: (context, index) {
-          if (showAddButton && index == 0) return _buildAddCustomMusicCard();
+          if (showAddButton && index == 0) {
+            return AddMusicCard(
+              onTap: () async {
+                final updated = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreatemusicPage(),
+                  ),
+                );
+                if (updated == true) _loadFromDb();
+              },
+            );
+          }
 
           final songIndex = showAddButton ? index - 1 : index;
-          final song = displaySongs[songIndex];
+          final song = songs[songIndex] as Map<String, dynamic>;
 
           return GestureDetector(
             onTap: () async {
-              bool? updated = await Navigator.push(
+              final updated = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => EditSongPage(songData: song),
+                  builder: (_) => EditSongPage(songData: song),
                 ),
               );
-
-              if (updated == true) {
-                loadSongsFromDb();
-              }
+              if (updated == true) _loadFromDb();
             },
-            child: _buildMusicCard(song),
+            child: MusicCard(
+              song: song,
+              baseUrl: baseUrl,
+              onDelete: () => _deleteSongQuickly(song['id']),
+            ),
           );
         },
       ),
-    );
-  }
-
-  Widget _buildAddCustomMusicCard() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CreatemusicPage()),
-        ).then((_) => loadSongsFromDb());
-      },
-      child: Container(
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4DB6AC),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.add, color: Colors.white, size: 50),
-            ),
-            const SizedBox(height: 15),
-            const Text(
-              "Add New Song",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMusicCard(Map<String, dynamic> song) {
-    String rawImageUrl = song['image'] ?? "";
-    String finalImageUrl = "";
-    if (rawImageUrl.startsWith("http")) {
-      finalImageUrl = rawImageUrl;
-    } else if (rawImageUrl.startsWith("/static")) {
-      finalImageUrl = "$baseUrl$rawImageUrl";
-    } else if (rawImageUrl.isNotEmpty) {
-      finalImageUrl = "$baseUrl/$rawImageUrl";
-    }
-
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                  child: Image.network(
-                    finalImageUrl.isNotEmpty ? finalImageUrl : "https://via.placeholder.com/150",
-                    fit: BoxFit.cover, width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) => const Center(
-                      child: Icon(Icons.music_note, size: 50, color: Colors.white24),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song['name'] ?? "Unknown",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      song['artist'] ?? "Unknown Artist",
-                      style: const TextStyle(color: Colors.white54, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        if (song['is_custom'] == true)
-          Positioned(
-            top: 5,
-            right: 5,
-            child: GestureDetector(
-              onTap: () => _deleteSongQuickly(song['id']),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

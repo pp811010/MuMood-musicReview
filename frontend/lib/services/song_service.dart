@@ -39,6 +39,45 @@ Future<Map<String, dynamic>?> fetchMyReview(String songId) async {
 }
 
 // ─────────────────────────────────────────────
+// Inventory Song Service
+// ─────────────────────────────────────────────
+
+Future<List<dynamic>> loadAllSongs() async {
+  try {
+    final response = await http.get(
+      Uri.parse("$_baseUrl/songs/db/all-songs"),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['results'] ?? [];
+    }
+  } catch (e) {
+    debugPrint("Error loading from DB: $e");
+  }
+  return [];
+}
+
+Future<Map<String, List<dynamic>>> searchSongs(String query) async {
+  if (query.trim().isEmpty) {
+    return {'db': [], 'spotify': []};
+  }
+  try {
+    final response = await http.get(
+      Uri.parse("$_baseUrl/songs/search?q=$query"),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> results = json.decode(response.body)['results'] ?? [];
+      return {
+        'db': results.where((s) => s['source'] == 'db').toList(),
+        'spotify': results.where((s) => s['source'] == 'spotify').toList(),
+      };
+    }
+  } catch (e) {
+    debugPrint("Search error: $e");
+  }
+  return {'db': [], 'spotify': []};
+}
+
+// ─────────────────────────────────────────────
 // Admin Song Service
 // ─────────────────────────────────────────────
 
