@@ -40,7 +40,8 @@ async def create_comment(
     # resolve song id
     if body.source == "spotify":
         stmt = select(Song).where(Song.spotify_id == body.song_id_reference)
-        song = (await db.execute(stmt)).scalar_one_or_none()
+        result = await db.execute(stmt)
+        song = result.scalars().first()
 
         if not song:
             # ดึงข้อมูลจาก Spotify แล้วบันทึก song ลง DB ก่อน
@@ -177,6 +178,46 @@ async def get_comments_by_song(
             }
             for c in comments
         ],
+    }
+
+
+@router.get("/history/me")
+async def get_my_comment_history(
+    db: SessionDep,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    ดึง comment ทั้งหมดของตัวเอง พร้อม song_id และ song info
+    เรียงจากใหม่ → เก่า โดย group เป็น distinct song_id
+    """
+    stmt = (
+        select(Comment)
+        .where(Comment.user_id == current_user.id)
+        .options(selectinload(Comment.user))
+        .order_by(Comment.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    comments = result.scalars().all()
+
+    # Group by song_id — เก็บ song_id distinct และจำนวน comment ต่อเพลง
+    song_comment_map: dict = {}
+    for c in comments:
+        sid = str(c.song_id)
+        if sid not in song_comment_map:
+            song_comment_map[sid] = {"song_id": c.song_id, "count": 0, "comments": []}
+        song_comment_map[sid]["count"] += 1
+        song_comment_map[sid]["comments"].append(
+            {
+                "id": c.id,
+                "content": c.content,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+            }
+        )
+
+    return {
+        "status": "success",
+        "song_comments": list(song_comment_map.values()),
     }
 
 

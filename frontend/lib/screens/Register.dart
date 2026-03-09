@@ -53,9 +53,33 @@ class _RegisterState extends State<Register> {
     );
   }
 
+  /// ตรวจสอบ password ตามเงื่อนไข
+  /// คืน null = ผ่าน, คืน String = error message
+  String? _validatePassword(String password) {
+    if (password.length < 8) {
+      return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
+    }
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return "Password ต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z)";
+    }
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return "Password ต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว (a-z)";
+    }
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return "Password ต้องมีตัวเลขอย่างน้อย 1 ตัว (0-9)";
+    }
+    return null;
+  }
+
   Future<void> _register() async {
-    // 1. Validation
+    // 1. Validation — เช็คว่ากรอกข้อมูลครบก่อน
     final email = _emailController.text.trim();
+
+    if (email.isEmpty || _passwordController.text.isEmpty) {
+      _showMessage("Please fill in all fields", isError: true);
+      return;
+    }
+
     if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
       _showMessage(
         "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
@@ -64,13 +88,9 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showMessage("Please fill in all fields", isError: true);
-      return;
-    }
-
-    if (_selectedGenres.isEmpty) {
-      _showMessage("Please select at least one genre", isError: true);
+    final passwordError = _validatePassword(_passwordController.text);
+    if (passwordError != null) {
+      _showMessage(passwordError, isError: true);
       return;
     }
 
@@ -79,12 +99,16 @@ class _RegisterState extends State<Register> {
       return;
     }
 
+    if (_selectedGenres.isEmpty) {
+      _showMessage("Please select at least one genre", isError: true);
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     // 2. Prepare Data
-    // Android Emulator uses 10.0.2.2
     final url = Uri.parse('http://10.0.2.2:8000/users/register/');
 
     String autoUsername = _emailController.text.split('@')[0];
@@ -110,7 +134,7 @@ class _RegisterState extends State<Register> {
           "Registration Successful! Please Sign in.",
           isError: false,
         );
-        Navigator.pop(context); // Go back to Login
+        Navigator.pop(context);
       } else {
         var errorData = jsonDecode(response.body);
         String errMsg = errorData['detail'] ?? "Registration Failed";
@@ -170,6 +194,14 @@ class _RegisterState extends State<Register> {
                 obscure: _obscurePassword,
                 onToggle: () =>
                     setState(() => _obscurePassword = !_obscurePassword),
+              ),
+              // Password hint
+              const Padding(
+                padding: EdgeInsets.only(top: 6, left: 4),
+                child: Text(
+                  'อย่างน้อย 8 ตัว • มีพิมพ์ใหญ่-เล็ก • มีตัวเลข',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                ),
               ),
 
               const SizedBox(height: 15),
@@ -262,7 +294,7 @@ class _RegisterState extends State<Register> {
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1DB954),
-                    foregroundColor: Colors.black, // Text color
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),

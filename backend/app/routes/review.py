@@ -1,15 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
-from sqlalchemy import select, and_
+from sqlalchemy import or_, select, and_
 
 from app.database import SessionDep
-from app.schemas.review import ReviewRequest, ReviewResponse, ReviewUpdate
+from app.schemas.review import ReviewRequest, ReviewUpdate
 from app.models import Review, Song, User
 from app.core.security import get_current_active_user
 from app.services.spotify import fetch_spotify_track
 
 
 router = APIRouter(prefix="/review", tags=["Review"])
+
+
+def _review_to_dict(r: Review) -> dict:
+    """แปลง SQLAlchemy Review object เป็น dict ให้ FastAPI serialize ได้ถูกต้อง"""
+    return {
+        "id": r.id,
+        "user_id": r.user_id,
+        "song_id": r.song_id,
+        "emotion_id": r.emotion_id,
+        "mood_color_id": r.mood_color_id,
+        "beat_score": r.beat_score,
+        "lyric_score": r.lyric_score,
+        "mood_score": r.mood_score,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at,
+    }
 
 
 @router.get("/me")
@@ -40,7 +55,7 @@ async def get_review_me(
             status_code=404, detail="Review not found for this user and song"
         )
 
-    return review
+    return _review_to_dict(review)
 
 
 @router.post("/")
@@ -49,11 +64,6 @@ async def create_review(
     review: ReviewRequest,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    สร้าง review (scores + emotion + mood) ได้ครั้งเดียวต่อเพลง
-    ถ้าต้องการแก้ไขให้ใช้ PUT /{review_id}
-    comment แยกไปใช้ /comment/ แทน
-    """
     target_song_id = None
     if review.source == "spotify":
         stmt = select(Song).where(Song.spotify_id == review.song_id_reference)
@@ -100,7 +110,7 @@ async def create_review(
     await db.commit()
     await db.refresh(new_review)
 
-    return {"status": "create review success", "review": new_review}
+    return {"status": "create review success", "review": _review_to_dict(new_review)}
 
 
 @router.get("/history/me")
@@ -110,7 +120,7 @@ async def get_my_reviews(
     query = select(Review).where(Review.user_id == current_user.id)
     result = await db.execute(query)
     reviews = result.scalars().all()
-    return {"reviews": reviews}
+    return {"reviews": [_review_to_dict(r) for r in reviews]}
 
 
 async def resolve_song_id(db: SessionDep, identifier: str) -> int:
@@ -136,7 +146,6 @@ async def get_review_by_song(
     current_user: User = Depends(get_current_active_user),
 ):
     song_id = await resolve_song_id(db, identifier)
-
     query = select(Review).where(
         Review.song_id == song_id, Review.user_id == current_user.id
     )
@@ -146,7 +155,7 @@ async def get_review_by_song(
     if not review:
         raise HTTPException(status_code=404, detail="ไม่พบรีวิวสำหรับเพลงนี้")
 
-    return {"status": "success", "review": review}
+    return {"status": "success", "review": _review_to_dict(review)}
 
 
 @router.put("/{review_id}")
@@ -156,10 +165,6 @@ async def update_review(
     db: SessionDep,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    แก้ไข review ได้ (scores, emotion, mood_color)
-    ลบ review ไม่ได้ — ถ้าต้องการลบ comment ให้ใช้ DELETE /comment/{comment_id}
-    """
     stmt = select(Review).where(Review.id == review_id)
     review = (await db.execute(stmt)).scalar_one_or_none()
 
@@ -173,7 +178,5 @@ async def update_review(
 
     await db.commit()
     await db.refresh(review)
-    return {"status": "success", "review": review}
 
-
-# ❌ ไม่มี DELETE review endpoint — review ลบไม่ได้ตามที่กำหนด
+    return {"status": "success", "review": _review_to_dict(review)}
