@@ -10,11 +10,10 @@ class SongCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = music.image.startsWith('/')
+        ? 'http://10.0.2.2:8000${music.image}'
+        : music.image;
 
-    final imageUrl = music.image.startsWith('/') 
-      ? 'http://10.0.2.2:8000${music.image}' 
-      : music.image;
-    
     debugPrint(imageUrl);
 
     return SizedBox(
@@ -35,14 +34,30 @@ class SongCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
                 child: Image.network(
-                  music.image,
+                  music.image.isNotEmpty
+                      ? music.image
+                      : "https://via.placeholder.com/150",
                   fit: BoxFit.cover,
                   width: double.infinity,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: const Color(0xFF1E1E1E),
+                      child: const Center(
+                        child: Icon(
+                          Icons.music_note,
+                          size: 50,
+                          color: Colors.white24,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            
+
             Text(
               music.title,
               style: const TextStyle(
