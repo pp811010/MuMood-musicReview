@@ -55,6 +55,24 @@ class _LoginState extends State<Login> {
     );
   }
 
+  /// ตรวจสอบ password ตามเงื่อนไข
+  /// คืน null = ผ่าน, คืน String = error message
+  String? _validatePassword(String password) {
+    if (password.length < 8) {
+      return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
+    }
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return "Password ต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z)";
+    }
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return "Password ต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว (a-z)";
+    }
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return "Password ต้องมีตัวเลขอย่างน้อย 1 ตัว (0-9)";
+    }
+    return null;
+  }
+
   Future<void> _login() async {
     // Admin bypass ก่อน — ไม่ต้องผ่าน email validation
     if (_emailController.text == "admin555" &&
@@ -73,6 +91,14 @@ class _LoginState extends State<Login> {
       _showErrorSnackBar(
         "กรุณาใส่ email ให้ถูกต้อง (ต้องมี @ และลงท้ายด้วย .com)",
       );
+      return;
+    }
+
+    // Validate password
+    final password = _passwordController.text;
+    final passwordError = _validatePassword(password);
+    if (passwordError != null) {
+      _showErrorSnackBar(passwordError);
       return;
     }
 

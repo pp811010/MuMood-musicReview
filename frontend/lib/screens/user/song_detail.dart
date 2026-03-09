@@ -4,6 +4,7 @@ import 'package:frontend/core/api_client.dart';
 import 'package:frontend/models/emotion.dart';
 import 'package:frontend/models/mood_color.dart';
 import 'package:frontend/models/song_detail.dart';
+import 'package:frontend/services/comment_service.dart';
 import 'package:frontend/services/favorite_service.dart';
 import 'package:frontend/services/review_service.dart';
 import 'package:frontend/services/song_service.dart';
@@ -23,28 +24,35 @@ class MusicDetail extends StatefulWidget {
 }
 
 class _MusicDetailState extends State<MusicDetail> {
+  // ── Review state ──────────────────────────────────────────────────────────
   bool isfavorite = false;
   Color selectedColor = Colors.purple;
   String? selectedEmotion;
-  bool openReview = false;
   Map<String, int> emotionCounts = {};
   double beatValue = 0;
   double lyricValue = 0;
   double moodValue = 0;
   bool _isSubmitting = false;
   bool _isEditingReview = false;
-  final TextEditingController _commentController = TextEditingController();
+  int? selectedEmotionId;
+  int? selectedMoodColorId;
+  Map<String, dynamic> myReview = {};
 
-  bool hasMyComment = false;
+  // ── Comment state ─────────────────────────────────────────────────────────
+  bool _openCommentBox = false;
+  bool _isPostingComment = false;
+  int? _editingCommentId; // null = โพสต์ใหม่, non-null = กำลัง edit
+  final TextEditingController _commentController = TextEditingController();
+  List<CommentItem> _comments = [];
+  int _myUserId = 0;
+
+  // ── Other ─────────────────────────────────────────────────────────────────
   bool _loadingEmotion = false;
   List<Emotion> allEmotion = [];
   bool _loadingMoodColor = false;
   List<MoodColor> allMoodColor = [];
   SongDetail? songDetail;
   String myUserName = '';
-  int? selectedEmotionId;
-  int? selectedMoodColorId;
-  Map<String, dynamic> myReview = {};
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
@@ -55,13 +63,10 @@ class _MusicDetailState extends State<MusicDetail> {
     _fetchEmotion();
     _fetchMood();
     _fetchDetailSong();
-    _getPerfs();
+    _getPrefs();
     _audioPlayer.playerStateStream.listen((state) {
       if (mounted) {
-        setState(() {
-          _isPlaying = state.playing;
-        });
-
+        setState(() => _isPlaying = state.playing);
         if (state.processingState == ProcessingState.completed) {
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.pause();
@@ -77,15 +82,20 @@ class _MusicDetailState extends State<MusicDetail> {
     super.dispose();
   }
 
-  void _getPerfs() async {
+  void _getPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => myUserName = prefs.getString('username') ?? '');
+    setState(() {
+      myUserName = prefs.getString('username') ?? '';
+      _myUserId = prefs.getInt('user_id') ?? 0;
+    });
   }
 
   Color hexToColor(String hex) {
     hex = hex.replaceAll('#', '');
     return Color(int.parse('FF$hex', radix: 16));
   }
+
+  // ── Fetch helpers ─────────────────────────────────────────────────────────
 
   Future<void> _fetchEmotion() async {
     setState(() => _loadingEmotion = true);
@@ -148,7 +158,7 @@ class _MusicDetailState extends State<MusicDetail> {
           songDetail = detail;
         });
       }
-      await _fetchMyReview();
+      await Future.wait([_fetchMyReview(), _fetchComments()]);
     } catch (e) {
       debugPrint('Error fetching song detail: $e');
     }
@@ -160,9 +170,6 @@ class _MusicDetailState extends State<MusicDetail> {
       if (data != null) {
         setState(() {
           myReview = data;
-          hasMyComment =
-              data['comment'] != null &&
-              data['comment'].toString().trim().isNotEmpty;
           beatValue = (data['beat_score'] as num).toDouble();
           lyricValue = (data['lyric_score'] as num).toDouble();
           moodValue = (data['mood_score'] as num).toDouble();
@@ -180,12 +187,10 @@ class _MusicDetailState extends State<MusicDetail> {
             );
             selectedColor = hexToColor(found.colorHex);
           }
-          _commentController.text = data['comment'] ?? '';
         });
       } else {
         setState(() {
           myReview = {};
-          hasMyComment = false;
           beatValue = 0;
           lyricValue = 0;
           moodValue = 0;
@@ -198,13 +203,27 @@ class _MusicDetailState extends State<MusicDetail> {
       debugPrint("Error fetching my review: $e");
       setState(() {
         myReview = {};
-        hasMyComment = false;
         beatValue = 0;
         lyricValue = 0;
         moodValue = 0;
       });
     }
   }
+
+  /// ดึง comments จาก Comment table (แยกจาก review)
+  Future<void> _fetchComments() async {
+    if (songDetail == null) return;
+    try {
+      final songIdInt = int.tryParse(songDetail!.id.toString());
+      if (songIdInt == null) return;
+      final comments = await fetchCommentsBySong(songIdInt);
+      setState(() => _comments = comments);
+    } catch (e) {
+      debugPrint('Error fetching comments: $e');
+    }
+  }
+
+  // ── Review actions ────────────────────────────────────────────────────────
 
   Future<void> _submitSharedRating() async {
     if (_isSubmitting) return;
@@ -245,7 +264,10 @@ class _MusicDetailState extends State<MusicDetail> {
         selectedEmotionId != myReview['emotion_id'] ||
         selectedMoodColorId != myReview['mood_color_id'];
 
-    if (!isDataChanged()) return;
+    if (!isDataChanged()) {
+      setState(() => _isEditingReview = false);
+      return;
+    }
 
     final ok = await updateRating(
       reviewId: myReview['id'],
@@ -262,34 +284,126 @@ class _MusicDetailState extends State<MusicDetail> {
     }
   }
 
-  Future<void> _updateComment() async {
-    final ok = await editComment(
-      reviewId: myReview['id'],
-      comment: _commentController.text,
-    );
-    if (ok) {
-      _showSnack("Comment updated", Colors.green);
-      await _fetchDetailSong(isSilent: true);
-      setState(() {
-        openReview = false;
-        _commentController.clear();
-      });
+  // ── Comment actions ────────────────────────────────────────────────────────
+
+  /// เปิด comment box สำหรับโพสต์ใหม่
+  void _openNewComment() {
+    setState(() {
+      _openCommentBox = true;
+      _editingCommentId = null;
+      _commentController.clear();
+    });
+  }
+
+  /// เปิด comment box สำหรับ edit comment ที่มีอยู่
+  void _startEditComment(CommentItem comment) {
+    setState(() {
+      _openCommentBox = true;
+      _editingCommentId = comment.id;
+      _commentController.text = comment.content;
+    });
+  }
+
+  void _closeCommentBox() {
+    setState(() {
+      _openCommentBox = false;
+      _editingCommentId = null;
+      _commentController.clear();
+    });
+  }
+
+  /// โพสต์ comment ใหม่หรือ update comment ที่มีอยู่
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _isPostingComment = true);
+
+    try {
+      if (_editingCommentId != null) {
+        // ── Edit mode ──
+        final ok = await updateComment(
+          commentId: _editingCommentId!,
+          content: text,
+        );
+        if (ok) {
+          _showSnack("Comment updated", Colors.green);
+          _closeCommentBox();
+          await _fetchComments();
+        } else {
+          _showSnack("Failed to update comment", Colors.red);
+        }
+      } else {
+        // ── New comment mode ──
+        final songRef = songDetail!.source == 'spotify'
+            ? widget.id
+            : songDetail!.id.toString();
+        final result = await postComment(
+          songIdReference: songRef,
+          source: songDetail!.source,
+          content: text,
+        );
+        if (result != null) {
+          _showSnack("Comment posted", Colors.green);
+          _closeCommentBox();
+          await _fetchComments();
+        } else {
+          _showSnack("Failed to post comment", Colors.red);
+        }
+      }
+    } finally {
+      setState(() => _isPostingComment = false);
     }
   }
 
-  Future<void> _deleteComment() async {
-    final ok = await deleteComment(myReview['id']);
+  /// ลบ comment
+  Future<void> _deleteComment(int commentId) async {
+    final ok = await deleteComment(commentId);
     if (ok) {
-      _showSnack("Comment deleted", Colors.red);
-      setState(() {
-        myReview['comment'] = null;
-        hasMyComment = false;
-        openReview = false;
-        _commentController.clear();
-      });
-      await _fetchDetailSong(isSilent: true);
+      _showSnack("Comment deleted", Colors.redAccent);
+      setState(() => _comments.removeWhere((c) => c.id == commentId));
+    } else {
+      _showSnack("Failed to delete comment", Colors.red);
     }
   }
+
+  void _showDeleteCommentDialog(CommentItem comment) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "Delete comment?",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          "This cannot be undone.",
+          style: TextStyle(color: Colors.white54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteComment(comment.id);
+            },
+            child: const Text(
+              "Delete",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Other actions ──────────────────────────────────────────────────────────
 
   Future<void> _toggleFavorite() async {
     if (songDetail == null) return;
@@ -301,16 +415,18 @@ class _MusicDetailState extends State<MusicDetail> {
     );
     if (result != null) {
       setState(() => isfavorite = result.isFavorited);
-      _showSnack(result.message, result.isFavorited ?  Colors.green:const Color.fromARGB(255, 175, 76, 76));
+      _showSnack(
+        result.message,
+        result.isFavorited
+            ? Colors.green
+            : const Color.fromARGB(255, 175, 76, 76),
+      );
     }
   }
 
   Future<void> _togglePreview() async {
     if (songDetail?.previewUrl == null) return;
-
-    final playerState = _audioPlayer.playerState;
-    final isPlaying = playerState.playing;
-
+    final isPlaying = _audioPlayer.playerState.playing;
     if (isPlaying) {
       await _audioPlayer.pause();
     } else {
@@ -333,44 +449,6 @@ class _MusicDetailState extends State<MusicDetail> {
       beatValue > 0 &&
       lyricValue > 0 &&
       moodValue > 0;
-
-  Future<void> createComment() async {
-    if (_commentController.text.trim().isEmpty) return;
-    try {
-      if (myReview.isEmpty) {
-        // ใช้ endpoint ใหม่ที่แยก comment จาก rating
-        await _submitCommentStandalone();
-      } else if (myReview['comment'] == null) {
-        await _submitCommentStandalone();
-      } else {
-        await _updateComment();
-      }
-      setState(() {
-        openReview = false;
-        _commentController.clear();
-        hasMyComment = true;
-      });
-      await _fetchDetailSong(isSilent: true);
-    } catch (e) {
-      debugPrint("Error: $e");
-    }
-  }
-
-  Future<void> _submitCommentStandalone() async {
-    final response = await ApiClient.post('/comment/standalone', {
-      "comment": _commentController.text,
-      "song_id_reference": songDetail!.source == 'spotify'
-          ? widget.id
-          : songDetail!.id.toString(),
-      "source": songDetail!.source,
-    });
-    if (response.statusCode == 200) {
-      _showSnack("Comment posted", Colors.green);
-      await _fetchMyReview(); // reload reviewId ที่เพิ่งสร้าง
-    } else {
-      _showSnack("Failed to post comment", Colors.red);
-    }
-  }
 
   void _showSnack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -416,6 +494,8 @@ class _MusicDetailState extends State<MusicDetail> {
       ),
     );
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -506,11 +586,11 @@ class _MusicDetailState extends State<MusicDetail> {
                         const SizedBox(height: 25),
                         _buildColorMoodSection(),
                         const SizedBox(height: 20),
-                        // ─── ปุ่ม Edit / Submit ───
+
+                        // ─── ปุ่ม Edit / Submit Review (ไม่มีปุ่มลบ) ───
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            // ถ้า submit แล้วและไม่ได้ editing — โชว์ปุ่ม Edit
                             if (myReview.isNotEmpty && !_isEditingReview)
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
@@ -528,7 +608,6 @@ class _MusicDetailState extends State<MusicDetail> {
                                   style: TextStyle(fontSize: 14),
                                 ),
                               ),
-                            // ถ้ายังไม่ submit หรือกำลัง editing — โชว์ปุ่ม Submit/Save
                             if (myReview.isEmpty || _isEditingReview) ...[
                               if (_isEditingReview)
                                 TextButton(
@@ -576,8 +655,10 @@ class _MusicDetailState extends State<MusicDetail> {
                             ],
                           ],
                         ),
+
                         const SizedBox(height: 32),
-                        // ─── Divider แยก Rating / Comment ───
+
+                        // ─── Divider ───
                         Row(
                           children: [
                             Expanded(
@@ -623,8 +704,366 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
+  // ─── COMMENT SECTION ──────────────────────────────────────────────────────
+
+  Widget _buildCommentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  "Comments",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (_comments.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_comments.length}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            // ปุ่ม Write — กด toggle เปิด/ปิด comment box ใหม่
+            GestureDetector(
+              onTap: () {
+                if (_openCommentBox && _editingCommentId == null) {
+                  _closeCommentBox();
+                } else {
+                  _openNewComment();
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: (_openCommentBox && _editingCommentId == null)
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.add_rounded,
+                      size: 15,
+                      color: (_openCommentBox && _editingCommentId == null)
+                          ? Colors.black
+                          : Colors.white,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      "Write",
+                      style: TextStyle(
+                        color: (_openCommentBox && _editingCommentId == null)
+                            ? Colors.black
+                            : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // Comment Input Box (โพสต์ใหม่ หรือ edit)
+        if (_openCommentBox) ...[
+          const SizedBox(height: 16),
+          _buildCommentInputBox(),
+        ],
+
+        const SizedBox(height: 16),
+
+        // Comments list
+        if (_comments.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: Colors.white.withOpacity(0.15),
+                    size: 40,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "No comments yet",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _comments.length,
+            separatorBuilder: (_, __) =>
+                Divider(color: Colors.white.withOpacity(0.06), height: 1),
+            itemBuilder: (_, i) => _buildCommentItem(_comments[i]),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCommentInputBox() {
+    final isEditing = _editingCommentId != null;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildAvatar(myUserName, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                myUserName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              if (isEditing)
+                Text(
+                  "Editing",
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _commentController,
+            autofocus: true,
+            maxLines: 4,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.5,
+            ),
+            decoration: InputDecoration(
+              hintText: isEditing
+                  ? "Edit your comment..."
+                  : "Share your thoughts...",
+              hintStyle: TextStyle(
+                color: Colors.white.withOpacity(0.3),
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.05),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _closeCommentBox,
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 9,
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: _isPostingComment ? null : _submitComment,
+                child: _isPostingComment
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          color: Colors.black,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        isEditing ? "Save" : "Post",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentItem(CommentItem comment) {
+    String timeAgo = '';
+    try {
+      final dt = DateTime.parse(comment.createdAt).toLocal();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1)
+        timeAgo = 'just now';
+      else if (diff.inMinutes < 60)
+        timeAgo = '${diff.inMinutes}m ago';
+      else if (diff.inHours < 24)
+        timeAgo = '${diff.inHours}h ago';
+      else
+        timeAgo = '${diff.inDays}d ago';
+    } catch (_) {}
+
+    final isMyComment = comment.userId == _myUserId;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAvatar(comment.username, size: 16),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      comment.username,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeAgo,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.3),
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (comment.updatedAt != comment.createdAt)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(
+                          "(edited)",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.2),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    // ปุ่ม Edit + Delete เฉพาะ comment ของตัวเอง
+                    if (isMyComment) ...[
+                      GestureDetector(
+                        onTap: () => _startEditComment(comment),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: Colors.white38,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () => _showDeleteCommentDialog(comment),
+                        child: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  comment.content,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String name, {required double size}) {
+    return CircleAvatar(
+      radius: size,
+      backgroundColor: selectedColor.withOpacity(0.3),
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: selectedColor,
+          fontWeight: FontWeight.w700,
+          fontSize: size * 0.8,
+        ),
+      ),
+    );
+  }
+
+  // ── Music cover / sections ─────────────────────────────────────────────────
+
   Widget _buildMusicCover() {
-    debugPrint('link_url : ${songDetail!.linkurl}');
     final raw = songDetail!.image;
     final imageUrl = (raw != null && raw.startsWith('/'))
         ? 'http://10.0.2.2:8000$raw'
@@ -635,7 +1074,6 @@ class _MusicDetailState extends State<MusicDetail> {
         Stack(
           alignment: Alignment.center,
           children: [
-            // ── รูปปก ──
             Container(
               width: 280,
               height: 280,
@@ -669,16 +1107,12 @@ class _MusicDetailState extends State<MusicDetail> {
                         ),
                       ),
                     ),
-                    // overlay มืดตอนเล่น
                     if (_isPlaying)
                       Container(color: Colors.black.withOpacity(0.35)),
                   ],
                 ),
               ),
             ),
-
-            // ── Play / Pause button ตรงกลาง ──
-            // ── Play / Pause button ตรงกลาง ──
             if (songDetail!.previewUrl != null)
               GestureDetector(
                 onTap: _togglePreview,
@@ -704,7 +1138,6 @@ class _MusicDetailState extends State<MusicDetail> {
               ),
           ],
         ),
-
         if (_isPlaying) ...[
           const SizedBox(height: 8),
           Row(
@@ -726,10 +1159,7 @@ class _MusicDetailState extends State<MusicDetail> {
             ],
           ),
         ],
-
         const SizedBox(height: 16),
-
-        // ── ชื่อเพลง + ไอคอนลิงก์ ──
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -741,26 +1171,8 @@ class _MusicDetailState extends State<MusicDetail> {
                 textAlign: TextAlign.center,
               ),
             ),
-            // if (songDetail!.linkurl != null) ...[
-            //   const SizedBox(width: 6),
-            //   InkWell(
-            //     borderRadius: BorderRadius.circular(20),
-            //     onTap: () async {
-            //       final uri = Uri.parse(songDetail!.linkurl!);
-            //       if (await canLaunchUrl(uri)) {
-            //         await launchUrl(uri, mode: LaunchMode.externalApplication);
-            //       }
-            //     },
-            //     child: const Icon(
-            //       Icons.open_in_new_rounded,
-            //       color: Colors.white38,
-            //       size: 18,
-            //     ),
-            //   ),
-            // ],
           ],
         ),
-
         const SizedBox(height: 4),
         Text(
           songDetail!.artistName,
@@ -785,11 +1197,9 @@ class _MusicDetailState extends State<MusicDetail> {
           count: emotionCounts[emotion.name] ?? 0,
           selectedColor: selectedColor,
           onTap: () {
-            // lock ถ้า submit แล้วและยังไม่ได้กด Edit
             if (myReview.isNotEmpty && !_isEditingReview) return;
             setState(() {
               if (selectedEmotion == emotion.name) {
-                // deselect ได้ตามปกติ
                 selectedEmotion = null;
                 selectedEmotionId = null;
                 emotionCounts[emotion.name] =
@@ -865,7 +1275,7 @@ class _MusicDetailState extends State<MusicDetail> {
         ),
         BuildSlider(
           label: 'Mood',
-          color: Color.fromARGB(173, 150, 81, 184),
+          color: const Color.fromARGB(173, 150, 81, 184),
           value: moodValue,
           onChanged: (myReview.isNotEmpty && !_isEditingReview)
               ? null
@@ -946,370 +1356,6 @@ class _MusicDetailState extends State<MusicDetail> {
                 ),
         ),
       ],
-    );
-  }
-
-  // ─── COMMENT SECTION ──────────────────────────────────────────────────────
-
-  Widget _buildCommentSection() {
-    final comments = songDetail!.comment;
-    final sortedComments = List.from(comments)
-      ..sort(
-        (a, b) => DateTime.parse(
-          b['created_at'],
-        ).compareTo(DateTime.parse(a['created_at'])),
-      );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  "Comments",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (comments.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${comments.length}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  openReview = !openReview;
-                  if (myReview['comment'] != null && openReview) {
-                    _commentController.text = myReview['comment'];
-                  } else {
-                    _commentController.clear();
-                  }
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: openReview
-                      ? Colors.white
-                      : Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      myReview['comment'] != null
-                          ? Icons.edit_rounded
-                          : Icons.add_rounded,
-                      size: 15,
-                      color: openReview ? Colors.black : Colors.white,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      myReview['comment'] != null ? "Edit" : "Write",
-                      style: TextStyle(
-                        color: openReview ? Colors.black : Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (openReview) ...[
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _buildAvatar(myUserName, size: 18),
-                    const SizedBox(width: 10),
-                    Text(
-                      myUserName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (hasMyComment)
-                      GestureDetector(
-                        onTap: _showDeleteDialog,
-                        child: const Icon(
-                          Icons.delete_outline_rounded,
-                          color: Colors.redAccent,
-                          size: 20,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _commentController,
-                  autofocus: true,
-                  maxLines: 4,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: "Share your thoughts...",
-                    hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 14,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() {
-                        openReview = false;
-                        _commentController.clear();
-                      }),
-                      child: const Text(
-                        "Cancel",
-                        style: TextStyle(color: Colors.white38, fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 9,
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: createComment,
-                      child: Text(
-                        hasMyComment ? "Save" : "Post",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 16),
-        if (sortedComments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: Colors.white.withOpacity(0.15),
-                    size: 40,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "No comments yet",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: sortedComments.length,
-            separatorBuilder: (_, __) =>
-                Divider(color: Colors.white.withOpacity(0.06), height: 1),
-            itemBuilder: (_, i) {
-              final item = sortedComments[i] as Map<String, dynamic>;
-              return _buildCommentItem(
-                username: item['username'] ?? '',
-                text: item['comment'] ?? '',
-                createdAt: item['created_at'] ?? '',
-              );
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCommentItem({
-    required String username,
-    required String text,
-    required String createdAt,
-  }) {
-    String timeAgo = '';
-    try {
-      final dt = DateTime.parse(createdAt).toLocal();
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1)
-        timeAgo = 'just now';
-      else if (diff.inMinutes < 60)
-        timeAgo = '${diff.inMinutes}m ago';
-      else if (diff.inHours < 24)
-        timeAgo = '${diff.inHours}h ago';
-      else
-        timeAgo = '${diff.inDays}d ago';
-    } catch (_) {}
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAvatar(username, size: 16),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      username,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      timeAgo,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  text,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(String name, {required double size}) {
-    return CircleAvatar(
-      radius: size,
-      backgroundColor: selectedColor.withOpacity(0.3),
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: TextStyle(
-          color: selectedColor,
-          fontWeight: FontWeight.w700,
-          fontSize: size * 0.8,
-        ),
-      ),
-    );
-  }
-
-  void _showDeleteDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          "Delete comment?",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          "This cannot be undone.",
-          style: TextStyle(color: Colors.white54),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(color: Colors.white54),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteComment();
-            },
-            child: const Text(
-              "Delete",
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
