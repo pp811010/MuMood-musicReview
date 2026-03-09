@@ -20,16 +20,11 @@ class SongCreate(SongBase):
 
 
 class CommentInSong(BaseModel):
-    """
-    Comment ที่แสดงใน song detail
-    ใช้ field 'content' ตาม Comment model ใหม่ (ไม่ใช่ 'comment' แล้ว)
-    """
     id: int
     user_id: int
     username: str
-    content: str                        # ← เปลี่ยนจาก comment → content
+    content: str               
     created_at: Optional[datetime] = None
-
     class Config:
         from_attributes = True
 
@@ -44,7 +39,7 @@ class SongResponse(BaseModel):
     avg_scores: dict = {"beat": 0.0, "lyric": 0.0, "mood": 0.0}
     emotion_counts: dict = {}
     color_counts: dict = {}
-    comment: list[CommentInSong] = []   # key ยังเป็น "comment" เพื่อ Flutter ไม่ต้องแก้
+    comment: list[CommentInSong] = []
     source: str
     dominant_color: Optional[str] = None
     song_cover_url: Optional[str] = None

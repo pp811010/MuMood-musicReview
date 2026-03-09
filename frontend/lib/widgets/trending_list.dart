@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/user/song_detail.dart';
+import 'package:frontend/screens/user/song_detail_page.dart';
 import 'package:frontend/widgets/no_tracks_found.dart';
 import 'package:frontend/widgets/tranding_list_shimmer.dart';
 
@@ -41,7 +41,7 @@ class TrendingList extends StatelessWidget {
                     context,
                     MaterialPageRoute<void>(
                       builder: (context) =>
-                          MusicDetail(id: song['id'].toString()),
+                          SongDetailPage(id: song['id'].toString()),
                     ),
                   );
                 },

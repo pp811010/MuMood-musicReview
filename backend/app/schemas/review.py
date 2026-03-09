@@ -4,10 +4,6 @@ from typing import Optional
 
 
 class ReviewRequest(BaseModel):
-    """
-    ใช้สร้าง review ใหม่ — เก็บแค่ scores + emotion + mood
-    comment แยกไปใช้ POST /comment/ แทน
-    """
     song_id_reference: str
     emotion_id: Optional[int] = None
     mood_color_id: Optional[int] = None
@@ -15,7 +11,6 @@ class ReviewRequest(BaseModel):
     lyric_score: Optional[float] = None
     mood_score: Optional[float] = None
     source: str
-    # ❌ comment ถูกลบออกแล้ว — ใช้ /comment/ endpoint แทน
 
 
 class ReviewUpdate(BaseModel):
@@ -28,7 +23,6 @@ class ReviewUpdate(BaseModel):
     beat_score: Optional[float] = None
     lyric_score: Optional[float] = None
     mood_score: Optional[float] = None
-    # ❌ comment ถูกลบออกแล้ว — ใช้ /comment/ endpoint แทน
 
 
 class ReviewResponse(BaseModel):
@@ -42,7 +36,5 @@ class ReviewResponse(BaseModel):
     mood_score: Optional[float] = None
     created_at: datetime
     updated_at: datetime
-    # ❌ comment field ถูกลบออกแล้ว
-
     class Config:
         from_attributes = True

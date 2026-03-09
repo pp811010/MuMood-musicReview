@@ -17,7 +17,6 @@ class FavoriteRequest(BaseModel):
     song_id_reference: str
     source: str
 
-
 class SongResponse(BaseModel):
     id: int
     song_name: str

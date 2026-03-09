@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../services/favorite_service.dart';
 import '../../services/user_service.dart';
-import '../user/song_detail.dart';
+import 'song_detail_page.dart';
 
 class FavoritePage extends StatefulWidget {
   const FavoritePage({super.key});
@@ -168,7 +168,7 @@ class _FavoritePageState extends State<FavoritePage> {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => MusicDetail(id: songId),
+                              builder: (context) => SongDetailPage(id: songId),
                             ),
                           );
 

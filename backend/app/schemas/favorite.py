@@ -2,8 +2,6 @@ from typing import Optional
 
 from pydantic import BaseModel, model_validator
 
-
-
 class SongResponse(BaseModel):
     id: int
     song_name: str

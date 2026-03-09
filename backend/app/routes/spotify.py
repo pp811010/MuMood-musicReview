@@ -1,5 +1,3 @@
-# app/routers/spotify.py  ← แก้ให้ใช้ async httpx ทั้งหมด
-
 from fastapi import APIRouter, Query, Depends, HTTPException
 import httpx
 from sqlalchemy import select
@@ -92,7 +90,6 @@ async def get_songs_by_genre(db: SessionDep, genre: str = "pop", limit: int = 10
         "preview_url": t.get("preview_url")
     } for t in tracks]
 
-    # final result
     results = custom_results + spotify_results
 
     return {"status": "success", "genre": genre, "songs": results}
@@ -117,18 +114,3 @@ async def search_music(q: str = Query(...)):
     results = [item for item in data["tracks"]["items"]]
 
     return {"results": results}
-
-
-# @router.get("/get-detail/{spotify_id}")
-# async def get_music(spotify_id: str):
-#     token = await get_spotify_token()
-
-#     async with httpx.AsyncClient() as client:
-#         response = await client.get(
-#             f"https://api.spotify.com/v1/tracks/{spotify_id}",
-#             headers={"Authorization": f"Bearer {token}"}
-#         )
-#         if response.status_code != 200:
-#             raise HTTPException(status_code=response.status_code, detail=response.json())
-
-#     return {"results": response.json()}

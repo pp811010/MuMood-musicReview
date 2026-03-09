@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/music.dart';
-import 'package:frontend/screens/user/song_detail.dart';
+import 'package:frontend/screens/user/song_detail_page.dart';
 
 class SongCard extends StatelessWidget {
   final Music music;
@@ -23,7 +23,7 @@ class SongCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute<void>(
-              builder: (context) => MusicDetail(id: music.id.toString()),
+              builder: (context) => SongDetailPage(id: music.id.toString()),
             ),
           );
         },

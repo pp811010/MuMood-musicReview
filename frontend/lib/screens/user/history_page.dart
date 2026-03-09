@@ -4,7 +4,7 @@ import '../../services/user_service.dart';
 import '../../services/history_service.dart';
 import '../../services/song_service.dart';
 import '../../models/song_detail.dart';
-import '../user/song_detail.dart';
+import 'song_detail_page.dart';
 
 class _HistoryEntry {
   final String songId;
@@ -240,7 +240,7 @@ class _HistoryPageState extends State<HistoryPage> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => MusicDetail(id: entry.songId),
+            builder: (context) => SongDetailPage(id: entry.songId),
           ),
         );
         _loadData();

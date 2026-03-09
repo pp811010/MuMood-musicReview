@@ -10,23 +10,13 @@ from app.services.spotify import fetch_spotify_track
 
 
 router = APIRouter(prefix="/comment", tags=["Comment"])
-
-
-# ─── Schemas (inline) ───────────────────────────────────────────────────────
-
-
 class CommentCreate(BaseModel):
-    song_id_reference: str  # spotify_id หรือ db song id
-    source: str  # "spotify" หรือ "db"
+    song_id_reference: str 
+    source: str 
     content: str
-
 
 class CommentUpdate(BaseModel):
     content: str
-
-
-# ─── Endpoints ──────────────────────────────────────────────────────────────
-
 
 @router.post("/")
 async def create_comment(
@@ -34,17 +24,12 @@ async def create_comment(
     db: SessionDep,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    คอมเมนต์ได้ไม่จำกัดจำนวน — สร้าง comment ใหม่ทุกครั้งที่เรียก
-    """
-    # resolve song id
     if body.source == "spotify":
         stmt = select(Song).where(Song.spotify_id == body.song_id_reference)
         result = await db.execute(stmt)
         song = result.scalars().first()
 
         if not song:
-            # ดึงข้อมูลจาก Spotify แล้วบันทึก song ลง DB ก่อน
             spotify_data = await fetch_spotify_track(body.song_id_reference)
             song = Song(
                 spotify_id=body.song_id_reference,
@@ -93,9 +78,6 @@ async def update_comment(
     db: SessionDep,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    แก้ไข comment ของตัวเองได้
-    """
     stmt = select(Comment).where(Comment.id == comment_id)
     comment = (await db.execute(stmt)).scalar_one_or_none()
 
@@ -130,9 +112,6 @@ async def delete_comment(
     db: SessionDep,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    ลบ comment ของตัวเองได้
-    """
     stmt = select(Comment).where(Comment.id == comment_id)
     comment = (await db.execute(stmt)).scalar_one_or_none()
 
@@ -152,9 +131,6 @@ async def get_comments_by_song(
     song_id: int,
     db: SessionDep,
 ):
-    """
-    ดึง comments ทั้งหมดของเพลง (เรียงจากใหม่ → เก่า)
-    """
     print(song_id)
     stmt = (
         select(Comment)
@@ -199,7 +175,6 @@ async def get_my_comment_history(
     result = await db.execute(stmt)
     comments = result.scalars().all()
 
-    # Group by song_id — เก็บ song_id distinct และจำนวน comment ต่อเพลง
     song_comment_map: dict = {}
     for c in comments:
         sid = str(c.song_id)

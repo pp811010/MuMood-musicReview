@@ -18,15 +18,15 @@ import 'package:frontend/widgets/review_action_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
 
-class MusicDetail extends StatefulWidget {
+class SongDetailPage extends StatefulWidget {
   final String id;
-  const MusicDetail({super.key, required this.id});
+  const SongDetailPage({super.key, required this.id});
 
   @override
-  State<MusicDetail> createState() => _MusicDetailState();
+  State<SongDetailPage> createState() => _MusicDetailState();
 }
 
-class _MusicDetailState extends State<MusicDetail> {
+class _MusicDetailState extends State<SongDetailPage> {
   bool isfavorite = false;
   Color selectedColor = Colors.purple;
   String? selectedEmotion;

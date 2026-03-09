@@ -133,7 +133,6 @@ async def get_song_detail(
     db_song = result.scalar_one_or_none()
 
     if db_song:
-        # ── ดึง reviews สำหรับคำนวณ scores ──
         reviews_stmt = (
             select(Review)
             .where(Review.song_id == db_song.id)
@@ -147,7 +146,6 @@ async def get_song_detail(
         reviews_result = await db.execute(reviews_stmt)
         reviews = reviews_result.scalars().all()
 
-        # ── ดึง comments จาก Comment table (แยกจาก Review) ──
         comments_stmt = (
             select(Comment)
             .where(Comment.song_id == db_song.id)
@@ -184,7 +182,6 @@ async def get_song_detail(
         fav_result = await db.execute(fav_stmt)
         is_favorite = fav_result.scalar_one_or_none() is not None
 
-        # หา dominant color
         dominant_color = None
         if color_counts:
             max_count = max(color_counts.values())
@@ -219,7 +216,6 @@ async def get_song_detail(
             "emotion_counts": emotion_counts,
             "color_counts": color_counts,
             "dominant_color": dominant_color,
-            # ── comment ดึงจาก Comment table แทน Review.comment ──
             "comment": [
                 {
                     "id": c.id,

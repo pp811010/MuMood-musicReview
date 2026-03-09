@@ -13,7 +13,6 @@ from app.services.spotify import get_spotify_token
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
-# Endpoint สำหรับ Search ศิลปิน/อัลบั้ม (Autocomplete)
 @router.get("/search-metadata")
 async def search_metadata(query: str, db: AsyncSession = Depends(get_db)):
     """ค้นหาข้อมูลเพลง ศิลปิน และอัลบั้ม ทั้งจาก DB และ Spotify แบบ Autocomplete สำหรับ suggesstion"""
