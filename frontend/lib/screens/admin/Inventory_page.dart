@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:audioplayers/audioplayers.dart';
-import 'dart:convert';
+import 'package:frontend/services/song_service.dart';
+import 'package:frontend/widgets/song_form/add_music_card.dart';
+import 'package:frontend/widgets/song_form/music_card.dart';
 import 'createmusic_page.dart';
 import 'edit_song_page.dart';
 
@@ -13,94 +13,70 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  List<dynamic> dbSongs = []; // เพลงที่อยู่ใน PostgreSQL
-  List<dynamic> spotifySongs = []; // ผลการค้นหาใหม่จาก Spotify API
+  List<dynamic> dbSongs = [];
+  List<dynamic> spotifySongs = [];
   bool isLoading = false;
-  final AudioPlayer _audioPlayer = AudioPlayer();
   final TextEditingController _searchController = TextEditingController();
 
-  // กำหนด IP ของ Backend (10.0.2.2 สำหรับ Android Emulator)
   static const String baseUrl = "http://10.0.2.2:8000";
 
   @override
   void initState() {
     super.initState();
-    loadSongsFromDb(); // โหลดเพลงจาก DB ทันทีเมื่อเข้าหน้า
+    _loadFromDb();
   }
 
-  // 1. ฟังก์ชันดึงเพลงทั้งหมดจาก DB (เรียกใช้ @router.get("/spotify/all-songs"))
-  Future<void> loadSongsFromDb() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFromDb() async {
     setState(() => isLoading = true);
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/songs/db/all-songs'));
-      if (response.statusCode == 200) {
-        setState(() {
-          dbSongs = json.decode(response.body)['results'];
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      debugPrint("Error loading from DB: $e");
-    }
+    final results = await loadAllSongs();
+    setState(() {
+      dbSongs = results;
+      spotifySongs = [];
+      isLoading = false;
+    });
   }
 
-  Future<void> fetchSongsFromSpotify(String query) async {
-    // 1. ถ้าช่องค้นหาว่าง ให้รีเซ็ตกลับไปแสดงเพลงทั้งหมดจาก DB
+  Future<void> _onSearch(String query) async {
     if (query.trim().isEmpty) {
-      setState(() {
-        spotifySongs = []; // ล้างผลการค้นหาจาก Spotify
-      });
-      await loadSongsFromDb(); // ดึงเพลงทั้งหมดกลับมาโชว์ใน Tab All/Custom
+      await _loadFromDb();
       return;
     }
-
     setState(() => isLoading = true);
+    final results = await searchSongs(query);
+    setState(() {
+      dbSongs = results['db']!;
+      spotifySongs = results['spotify']!;
+      isLoading = false;
+    });
+  }
 
-    try {
-      // 2. เรียก API ค้นหาแบบ Hybrid (DB + Spotify)
-      final response = await http.get(
-        Uri.parse('$baseUrl/songs/search?q=$query'),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> searchResults = json.decode(
-          response.body,
-        )['results'];
-
-        setState(() {
-          // กรองเพลงที่ตรงตามคำค้นหามาแสดงผล
-          dbSongs = searchResults.where((s) => s['source'] == 'db').toList();
-          spotifySongs = searchResults
-              .where((s) => s['source'] == 'spotify')
-              .toList();
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      debugPrint("Search error: $e");
-    }
+  Future<void> _onRefresh() async {
+    final query = _searchController.text.trim();
+    query.isNotEmpty ? await _onSearch(query) : await _loadFromDb();
   }
 
   Future<void> _deleteSongQuickly(int songId) async {
-    bool confirm = await _showConfirmDialog(
+    final confirm = await _showConfirmDialog(
       "Delete Song",
       "Are you sure you want to remove this song?",
     );
     if (!confirm) return;
 
     setState(() => isLoading = true);
-    try {
-      final response = await http.delete(Uri.parse('$baseUrl/songs/$songId'));
-      if (response.statusCode == 200) {
-        loadSongsFromDb(); // รีโหลดรายการเพลงใหม่
-        _showSnackBar("Song deleted", Colors.green);
-      }
-    } catch (e) {
+    final result = await deleteSong(songId);
+    setState(() => isLoading = false);
+
+    if (result.isSuccess) {
+      _showSnackBar("Song deleted", Colors.green);
+      _loadFromDb();
+    } else {
       _showSnackBar("Error deleting song", Colors.red);
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
@@ -117,7 +93,10 @@ class _InventoryPageState extends State<InventoryPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text("Cancel", style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
@@ -133,17 +112,9 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _showSnackBar(String msg, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
-  }
-
-
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    _searchController.dispose();
-    super.dispose();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   @override
@@ -171,7 +142,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 prefixIcon: Icon(Icons.search, color: Colors.white38),
                 border: InputBorder.none,
               ),
-              onSubmitted: (value) => fetchSongsFromSpotify(value),
+              onSubmitted: _onSearch,
             ),
           ),
           bottom: PreferredSize(
@@ -205,180 +176,95 @@ class _InventoryPageState extends State<InventoryPage> {
               )
             : TabBarView(
                 children: [
-                  _buildMusicGrid(dbSongs, "All"), // เพลงทั้งหมดใน DB
+                  _buildMusicGrid(dbSongs, "All"),
                   _buildMusicGrid([
-                    ...spotifySongs, // ผลการค้นหาใหม่จาก API
-                    ...dbSongs
-                        .where((s) => s['is_custom'] == false)
-                        .toList(), // เพลง Spotify ใน DB
-                  ], "Spotify"), // ผลการค้นหาใหม่
+                    ...spotifySongs,
+                    ...dbSongs.where((s) => s['is_custom'] == false).toList(),
+                  ], "Spotify"),
                   _buildMusicGrid(
                     dbSongs.where((s) => s['is_custom'] == true).toList(),
                     "Custom",
-                  ), // เพลงที่เพิ่มเอง
+                  ),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildMusicGrid(List<dynamic> displaySongs, String type) {
-    bool showAddButton = (type == "All" || type == "Custom");
-    int itemCount = showAddButton
-        ? displaySongs.length + 1
-        : displaySongs.length;
+  Widget _buildMusicGrid(List<dynamic> songs, String type) {
+    final bool showAddButton = type == "All" || type == "Custom";
+    final int itemCount = showAddButton ? songs.length + 1 : songs.length;
 
-    if (displaySongs.isEmpty && !showAddButton) {
-      return Center(
-        child: Text(
-          "No songs found in $type",
-          style: const TextStyle(color: Colors.white54),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 15,
-        mainAxisSpacing: 15,
-      ),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (showAddButton && index == 0) return _buildAddCustomMusicCard();
-
-        final songIndex = showAddButton ? index - 1 : index;
-        final song = displaySongs[songIndex];
-
-        return GestureDetector(
-          onTap: () async {
-            bool? updated = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EditSongPage(songData: song),
-              ),
-            );
-
-            if (updated == true) {
-              loadSongsFromDb();
-            }
-          },
-          child: _buildMusicCard(song),
-        );
-      },
-    );
-  }
-
-  Widget _buildAddCustomMusicCard() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CreatemusicPage()),
-        ).then((_) => loadSongsFromDb()); // Refresh เมื่อกลับมาจากหน้าเพิ่มเพลง
-      },
-      child: Container(
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    if (songs.isEmpty && !showAddButton) {
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        color: Colors.green,
+        backgroundColor: const Color(0xFF1E1E1E),
+        child: ListView(
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4DB6AC),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.add, color: Colors.white, size: 50),
-            ),
-            const SizedBox(height: 15),
-            const Text(
-              "Add New Song",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Text(
+                  "No songs found in $type",
+                  style: const TextStyle(color: Colors.white54),
+                ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildMusicCard(Map<String, dynamic> song) {
-    String rawImageUrl = song['image'] ?? "";
-    String finalImageUrl = "";
-    if (rawImageUrl.startsWith("http")) {
-      finalImageUrl = rawImageUrl;
-    } else if (rawImageUrl.startsWith("/static")) {
-      finalImageUrl = "$baseUrl$rawImageUrl";
-    } else if (rawImageUrl.isNotEmpty) {
-      finalImageUrl = "$baseUrl/$rawImageUrl";
+      );
     }
 
-    return Stack( // ใช้ Stack เพื่อวางปุ่มลบทับบนรูป
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                  child: Image.network(
-                    finalImageUrl.isNotEmpty ? finalImageUrl : "https://via.placeholder.com/150",
-                    fit: BoxFit.cover, width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) => const Center(
-                      child: Icon(Icons.music_note, size: 50, color: Colors.white24),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song['name'] ?? "Unknown",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      song['artist'] ?? "Unknown Artist",
-                      style: const TextStyle(color: Colors.white54, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: Colors.green,
+      backgroundColor: const Color(0xFF1E1E1E),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 15,
+          mainAxisSpacing: 15,
         ),
-        
-        if (song['is_custom'] == true)
-          Positioned(
-            top: 5,
-            right: 5,
-            child: GestureDetector(
-              onTap: () => _deleteSongQuickly(song['id']),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (showAddButton && index == 0) {
+            return AddMusicCard(
+              onTap: () async {
+                final updated = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreatemusicPage(),
+                  ),
+                );
+                if (updated == true) _loadFromDb();
+              },
+            );
+          }
+
+          final songIndex = showAddButton ? index - 1 : index;
+          final song = songs[songIndex] as Map<String, dynamic>;
+
+          return GestureDetector(
+            onTap: () async {
+              final updated = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditSongPage(songData: song),
                 ),
-                child: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-              ),
+              );
+              if (updated == true) _loadFromDb();
+            },
+            child: MusicCard(
+              song: song,
+              baseUrl: baseUrl,
+              onDelete: () => _deleteSongQuickly(song['id']),
             ),
-          ),
-      ],
+          );
+        },
+      ),
     );
   }
 }
