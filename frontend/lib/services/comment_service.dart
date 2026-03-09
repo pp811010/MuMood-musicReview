@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:frontend/core/api_client.dart';
 
-/// Model สำหรับ comment แต่ละรายการ
 class CommentItem {
   final int id;
   final int userId;
@@ -30,7 +29,6 @@ class CommentItem {
     );
   }
 
-  /// สร้าง copy ที่แก้ไข content
   CommentItem copyWith({String? content}) {
     return CommentItem(
       id: id,
@@ -43,7 +41,6 @@ class CommentItem {
   }
 }
 
-/// โพสต์ comment ใหม่ — โพสต์ได้ไม่จำกัด
 Future<CommentItem?> postComment({
   required String songIdReference,
   required String source,
@@ -57,8 +54,6 @@ Future<CommentItem?> postComment({
   if (response.statusCode == 200) {
     final data = jsonDecode(response.body);
     final commentJson = data['comment'] as Map<String, dynamic>;
-    // postComment ไม่มี username ใน response → ใส่ placeholder ก่อน
-    // ค่าจริงจะถูก refresh จาก fetchCommentsBySong
     return CommentItem(
       id: commentJson['id'],
       userId: commentJson['user_id'],
@@ -71,7 +66,6 @@ Future<CommentItem?> postComment({
   return null;
 }
 
-/// แก้ไข comment ของตัวเอง
 Future<bool> updateComment({
   required int commentId,
   required String content,
@@ -82,13 +76,11 @@ Future<bool> updateComment({
   return response.statusCode == 200;
 }
 
-/// ลบ comment ของตัวเอง
 Future<bool> deleteComment(int commentId) async {
   final response = await ApiClient.delete('/comment/$commentId');
   return response.statusCode == 200;
 }
 
-/// ดึง comments ทั้งหมดของเพลง
 Future<List<CommentItem>> fetchCommentsBySong(int songId) async {
   final response = await ApiClient.get('/comment/song/$songId');
   if (response.statusCode != 200) return [];
@@ -99,7 +91,6 @@ Future<List<CommentItem>> fetchCommentsBySong(int songId) async {
       .toList();
 }
 
-/// ดึง comments ของตัวเองในเพลงนั้น
 Future<List<CommentItem>> fetchMyCommentsBySong(int songId) async {
   final response = await ApiClient.get('/comment/me/song/$songId');
   if (response.statusCode != 200) return [];
@@ -110,7 +101,6 @@ Future<List<CommentItem>> fetchMyCommentsBySong(int songId) async {
       .toList();
 }
 
-/// parse error detail จาก response body
 String? parseCommentError(String responseBody) {
   try {
     final data = jsonDecode(responseBody);

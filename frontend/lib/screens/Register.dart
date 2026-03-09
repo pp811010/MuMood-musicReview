@@ -10,13 +10,11 @@ class Register extends StatefulWidget {
 }
 
 class _RegisterState extends State<Register> {
-  // Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _bioController = TextEditingController();
 
-  // State for Genre Selection
   final List<String> _selectedGenres = [];
   final List<String> _genres = [
     'Pop',
@@ -53,8 +51,6 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  /// ตรวจสอบ password ตามเงื่อนไข
-  /// คืน null = ผ่าน, คืน String = error message
   String? _validatePassword(String password) {
     if (password.length < 8) {
       return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
@@ -72,7 +68,6 @@ class _RegisterState extends State<Register> {
   }
 
   Future<void> _register() async {
-    // 1. Validation — เช็คว่ากรอกข้อมูลครบก่อน
     final email = _emailController.text.trim();
 
     if (email.isEmpty || _passwordController.text.isEmpty) {
@@ -108,14 +103,12 @@ class _RegisterState extends State<Register> {
       _isLoading = true;
     });
 
-    // 2. Prepare Data
     final url = Uri.parse('http://10.0.2.2:8000/users/register/');
 
     String autoUsername = _emailController.text.split('@')[0];
     String bioValue = _bioController.text.isEmpty ? "-" : _bioController.text;
     String genreString = _selectedGenres.join(', ');
 
-    // 3. API Call
     try {
       final response = await http.post(
         url,
@@ -160,7 +153,6 @@ class _RegisterState extends State<Register> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back Button
               IconButton(
                 alignment: Alignment.centerLeft,
                 padding: EdgeInsets.zero,
@@ -179,13 +171,11 @@ class _RegisterState extends State<Register> {
               ),
               const SizedBox(height: 20),
 
-              // Email
               _buildLabel('Email'),
               _buildTextField(_emailController, 'username@mail.com', false),
 
               const SizedBox(height: 15),
 
-              // Password
               _buildLabel('Password'),
               _buildTextField(
                 _passwordController,
@@ -195,7 +185,6 @@ class _RegisterState extends State<Register> {
                 onToggle: () =>
                     setState(() => _obscurePassword = !_obscurePassword),
               ),
-              // Password hint
               const Padding(
                 padding: EdgeInsets.only(top: 6, left: 4),
                 child: Text(
@@ -206,7 +195,6 @@ class _RegisterState extends State<Register> {
 
               const SizedBox(height: 15),
 
-              // Confirm Password
               _buildLabel('Confirm Password'),
               _buildTextField(
                 _confirmController,
@@ -219,7 +207,6 @@ class _RegisterState extends State<Register> {
 
               const SizedBox(height: 15),
 
-              // Favorite Genres
               _buildLabel('Favorite Genres (Select multiple)'),
               const SizedBox(height: 10),
               Container(
@@ -262,32 +249,8 @@ class _RegisterState extends State<Register> {
                 ),
               ),
 
-              const SizedBox(height: 15),
-
-              // Bio
-              _buildLabel('Bio (Tell us about yourself)'),
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: TextField(
-                  controller: _bioController,
-                  style: const TextStyle(color: Colors.white),
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'I love listening to music...',
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    filled: true,
-                    fillColor: Colors.white10,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-
               const SizedBox(height: 30),
 
-              // Sign Up Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -326,7 +289,6 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  // Helper Widget: Matches Login.dart style
   Widget _buildLabel(String text) {
     return Text(
       text,
@@ -334,7 +296,6 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  // Helper Widget: Matches Login.dart style
   Widget _buildTextField(
     TextEditingController controller,
     String hint,

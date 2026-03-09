@@ -15,27 +15,27 @@ Future<SongDetail?> fetchDetailSong(String songId) async {
   final colors = result['color_counts'] as Map<String, dynamic>? ?? {};
   final comments = result['comment'] as List? ?? [];
 
-   return SongDetail(
-      id: result['id'],
-      image: result['song_cover_url'],
-      songName: result['song_name'],
-      dominantColor: result['dominant_color'],
-      artistName: result['artist_name'],
-      favorite: result['favorite'] ?? false,
-      avgScores: avg.map((k, v) => MapEntry(k, (v as num).toDouble())),
-      emotionCounts: emotions.map((k, v) => MapEntry(k, v as int)),
-      colorCounts: colors.map((k, v) => MapEntry(k, v as int)),
-      comment: comments,
-      source: result['source'] ?? '',
-      previewUrl: result['preview_url'],
-      linkurl: result['link_url'],
-    );
+  return SongDetail(
+    id: result['id'],
+    image: result['song_cover_url'],
+    songName: result['song_name'],
+    dominantColor: result['dominant_color'],
+    artistName: result['artist_name'],
+    favorite: result['favorite'] ?? false,
+    avgScores: avg.map((k, v) => MapEntry(k, (v as num).toDouble())),
+    emotionCounts: emotions.map((k, v) => MapEntry(k, v as int)),
+    colorCounts: colors.map((k, v) => MapEntry(k, v as int)),
+    comment: comments,
+    source: result['source'] ?? '',
+    previewUrl: result['preview_url'],
+    linkurl: result['link_url'],
+  );
 }
 
 Future<Map<String, dynamic>?> fetchMyReview(String songId) async {
-    final response = await ApiClient.get('/review/me?song_identifier=$songId');
-    if (response.statusCode != 200) return null;
-    return jsonDecode(response.body) as Map<String, dynamic>;
+  final response = await ApiClient.get('/review/me?song_identifier=$songId');
+  if (response.statusCode != 200) return null;
+  return jsonDecode(response.body) as Map<String, dynamic>;
 }
 
 // ─────────────────────────────────────────────
@@ -44,9 +44,7 @@ Future<Map<String, dynamic>?> fetchMyReview(String songId) async {
 
 Future<List<dynamic>> loadAllSongs() async {
   try {
-    final response = await http.get(
-      Uri.parse("$_baseUrl/songs/db/all-songs"),
-    );
+    final response = await http.get(Uri.parse("$_baseUrl/songs/db/all-songs"));
     if (response.statusCode == 200) {
       return json.decode(response.body)['results'] ?? [];
     }
@@ -197,8 +195,7 @@ class SongServiceResult {
 
   SongServiceResult._({required this.isSuccess, this.errorMessage});
 
-  factory SongServiceResult.success() =>
-      SongServiceResult._(isSuccess: true);
+  factory SongServiceResult.success() => SongServiceResult._(isSuccess: true);
 
   factory SongServiceResult.failure(String message) =>
       SongServiceResult._(isSuccess: false, errorMessage: message);

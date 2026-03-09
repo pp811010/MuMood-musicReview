@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
 import '../../services/favorite_service.dart';
 import '../../services/history_service.dart';
-import '../../core/api_client.dart'; // import ตัวกระจายสัญญาณ
+import '../../core/api_client.dart';
 import '../Login.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -13,7 +13,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // State
   Map<String, dynamic>? _profile;
   int _reviewsCount = 0;
   int _favoritesCount = 0;
@@ -30,7 +29,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   void dispose() {
-    // คืนค่า
     dataRefreshNotifier.removeListener(_onDataChanged);
     super.dispose();
   }
@@ -169,7 +167,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
             const SizedBox(height: 40),
 
-            // นำยอดจำนวนเข้าไปแสดงใน UI เดิมของคุณแล้วครับ!
             _buildStatRow("REVIEWS", "$_reviewsCount"),
             _buildStatRow("FAVORITES", "$_favoritesCount"),
 
@@ -247,8 +244,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      automaticallyImplyLeading:
-          false, // ป้องกันการสร้างปุ่ม Back ตอนอยู่บน Bottom Nav
+      automaticallyImplyLeading: false,
       actions: [
         IconButton(
           onPressed: _logout,

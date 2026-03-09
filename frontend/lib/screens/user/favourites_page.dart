@@ -164,19 +164,6 @@ class _FavoritePageState extends State<FavoritePage> {
                       final songId = (song['song_id'] ?? song['id']).toString();
 
                       return GestureDetector(
-                        // onTap: () async {
-                        //   if (songId == null) return;
-                        //   // TODO: เปลี่ยนคลาส SongDetailPage เป็นชื่อจริงที่คุณใช้
-                        //   /*
-                        //   await Navigator.push(
-                        //     context,
-                        //     MaterialPageRoute(
-                        //       builder: (context) => SongDetailPage(songId: songId.toString()),
-                        //     ),
-                        //   );
-                        //   _loadData();
-                        //   */
-                        // },
                         onTap: () async {
                           await Navigator.push(
                             context,

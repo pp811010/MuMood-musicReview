@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:frontend/core/api_client.dart';
 
-/// Submit review ใหม่ (scores + emotion + mood) — ทำได้ครั้งเดียวต่อเพลง
 Future<bool> submitRating({
   required String songIdReference,
   required String source,
@@ -24,7 +23,6 @@ Future<bool> submitRating({
   return response.statusCode == 200;
 }
 
-/// แก้ไข review ที่มีอยู่แล้ว (scores + emotion + mood) — ลบไม่ได้
 Future<bool> updateRating({
   required int reviewId,
   required double beatScore,
@@ -44,7 +42,6 @@ Future<bool> updateRating({
   return response.statusCode == 200;
 }
 
-/// parse error detail จาก response body
 String? parseError(String responseBody) {
   try {
     final data = jsonDecode(responseBody);
@@ -53,6 +50,3 @@ String? parseError(String responseBody) {
     return null;
   }
 }
-
-// ❌ deleteReview — ลบออกแล้ว review ลบไม่ได้
-// ❌ editComment / deleteComment — ย้ายไปที่ comment_service.dart แล้ว

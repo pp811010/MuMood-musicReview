@@ -6,8 +6,6 @@ import '../core/api_client.dart';
 
 class ApiService {
   static const String baseUrl = 'http://10.0.2.2:8000';
-
-
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('access_token');
@@ -40,7 +38,6 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final token = data['access_token'] as String;
-      // เซฟ refresh_token ด้วย ถ้า Backend ส่งมา
       final refreshToken = data['refresh_token'] as String?;
       await saveToken(token, refreshToken);
       return token;
