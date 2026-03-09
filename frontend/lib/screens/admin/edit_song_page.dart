@@ -1,8 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+
+import 'package:frontend/services/song_service.dart';
+import 'package:frontend/widgets/song_form/song_category_dropdown.dart';
+import 'package:frontend/widgets/song_form/song_cover_picker.dart';
+import 'package:frontend/widgets/song_form/song_form_label.dart';
+import 'package:frontend/widgets/song_form/song_form_text_field.dart';
+import 'package:frontend/widgets/song_form/song_suggestions_container.dart';
+
 
 class EditSongPage extends StatefulWidget {
   final Map songData;
@@ -15,7 +21,6 @@ class EditSongPage extends StatefulWidget {
 class _EditSongPageState extends State<EditSongPage> {
   final _formKey = GlobalKey<FormState>();
 
-  // FocusNodes สำหรับคุม UI แบบเดียวกับหน้าเพิ่มเพลง
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _artistFocus = FocusNode();
   final FocusNode _albumFocus = FocusNode();
@@ -30,22 +35,10 @@ class _EditSongPageState extends State<EditSongPage> {
   bool _isProcessing = false;
   String? _snapshotSpotifySong;
   String? _snapshotSpotifyArtist;
+
   List<Map<String, dynamic>> _songObjects = [];
   List<String> _suggestedArtists = [];
   List<String> _suggestedAlbums = [];
-
-  final List<String> _categories = [
-    'Pop',
-    'Rock',
-    'Jazz',
-    'Hip-Hop',
-    'Classical',
-    'R&B',
-    'K-Pop',
-    'Indie',
-    'Metal',
-    'EDM',
-  ];
 
   @override
   void initState() {
@@ -58,8 +51,6 @@ class _EditSongPageState extends State<EditSongPage> {
     _linkController = TextEditingController(
       text: widget.songData['link_url'] ?? "",
     );
-    print(_linkController);
-    print(_albumController);
 
     if (widget.songData['is_custom'] == false) {
       _snapshotSpotifySong = widget.songData['name'];
@@ -69,14 +60,14 @@ class _EditSongPageState extends State<EditSongPage> {
     final String? dbCategory = widget.songData['category']?.toString().trim();
     if (dbCategory != null) {
       try {
-        _selectedCategory = _categories.firstWhere(
+        _selectedCategory = SongCategoryDropdown.categories.firstWhere(
           (c) => c.toLowerCase() == dbCategory.toLowerCase(),
         );
       } catch (_) {
-        _selectedCategory = _categories.first;
+        _selectedCategory = SongCategoryDropdown.categories.first;
       }
     } else {
-      _selectedCategory = _categories.first;
+      _selectedCategory = SongCategoryDropdown.categories.first;
     }
 
     _nameFocus.addListener(() => setState(() {}));
@@ -92,10 +83,11 @@ class _EditSongPageState extends State<EditSongPage> {
     _nameController.dispose();
     _artistController.dispose();
     _albumController.dispose();
+    _linkController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchMetadataSuggestions(String query, String type) async {
+  Future<void> _fetchSuggestions(String query, String type) async {
     if (query.trim().length < 2) {
       setState(() {
         if (type == 'song') _songObjects = [];
@@ -104,21 +96,12 @@ class _EditSongPageState extends State<EditSongPage> {
       });
       return;
     }
-    try {
-      final res = await http.get(
-        Uri.parse("http://10.0.2.2:8000/admin/search-metadata?query=$query"),
-      );
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        setState(() {
-          _songObjects = List<Map<String, dynamic>>.from(data['songs'] ?? []);
-          _suggestedArtists = List<String>.from(data['artists'] ?? []);
-          _suggestedAlbums = List<String>.from(data['albums'] ?? []);
-        });
-      }
-    } catch (e) {
-      debugPrint("Suggestions error: $e");
-    }
+    final result = await fetchMetadataSuggestions(query);
+    setState(() {
+      _songObjects = result['songs'];
+      _suggestedArtists = result['artists'];
+      _suggestedAlbums = result['albums'];
+    });
   }
 
   Future<void> _pickImage() async {
@@ -135,12 +118,12 @@ class _EditSongPageState extends State<EditSongPage> {
     final currentSong = _nameController.text.trim().toLowerCase();
     final currentArtist = _artistController.text.trim().toLowerCase();
 
-    bool isMatchSnapshot =
+    final isMatchSnapshot =
         _snapshotSpotifySong != null &&
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
 
-    bool isMatchSuggestions = _songObjects.any(
+    final isMatchSuggestions = _songObjects.any(
       (item) =>
           item['name'].toString().toLowerCase().trim() == currentSong &&
           item['artist'].toString().toLowerCase().trim() == currentArtist,
@@ -155,51 +138,38 @@ class _EditSongPageState extends State<EditSongPage> {
     }
 
     setState(() => _isProcessing = true);
-    try {
-      var request = http.MultipartRequest(
-        "PATCH",
-        Uri.parse("http://10.0.2.2:8000/songs/${widget.songData['id']}"),
-      );
-      request.fields['song_name'] = _nameController.text.trim();
-      request.fields['category'] = _selectedCategory!;
-      request.fields['artist_name'] = _artistController.text.trim();
-      request.fields['album_name'] = _albumController.text.trim();
-      request.fields['link_url'] = _linkController.text.trim();
 
-      if (_newImageFile != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('file', _newImageFile!.path),
-        );
-      }
+    final result = await updateSong(
+      songId: widget.songData['id'],
+      songName: _nameController.text.trim(),
+      category: _selectedCategory!,
+      artistName: _artistController.text.trim(),
+      albumName: _albumController.text.trim(),
+      linkUrl: _linkController.text.trim(),
+      newImageFile: _newImageFile,
+    );
 
-      final streamedRes = await request.send();
-      if (streamedRes.statusCode == 200)
-        Navigator.pop(context, true);
-      else {
-        final res = await http.Response.fromStream(streamedRes);
-        _showSnackBar("Error: ${json.decode(res.body)['detail']}", Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar("Update Error: $e", Colors.red);
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
+    if (mounted) setState(() => _isProcessing = false);
+
+    if (result.isSuccess) {
+      Navigator.pop(context, true);
+    } else {
+      _showSnackBar("Error: ${result.errorMessage}", Colors.red);
     }
   }
 
   Future<void> _deleteSong() async {
-    bool confirm = await _showConfirmDialog();
-    if (!confirm) return;
+    final confirmed = await _showConfirmDialog();
+    if (!confirmed) return;
 
     setState(() => _isProcessing = true);
-    try {
-      final res = await http.delete(
-        Uri.parse("http://10.0.2.2:8000/songs/${widget.songData['id']}"),
-      );
-      if (res.statusCode == 200) Navigator.pop(context, true);
-    } catch (e) {
-      debugPrint("Delete Error: $e");
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
+
+    final result = await deleteSong(widget.songData['id']);
+
+    if (mounted) setState(() => _isProcessing = false);
+
+    if (result.isSuccess) {
+      Navigator.pop(context, true);
     }
   }
 
@@ -213,8 +183,18 @@ class _EditSongPageState extends State<EditSongPage> {
     );
   }
 
+  void _clearSuggestions() {
+    setState(() {
+      _songObjects = [];
+      _suggestedArtists = [];
+      _suggestedAlbums = [];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isCustom = widget.songData['is_custom'] == true;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
       appBar: AppBar(
@@ -229,7 +209,7 @@ class _EditSongPageState extends State<EditSongPage> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
-          if (widget.songData['is_custom'] == true)
+          if (isCustom)
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
               onPressed: _isProcessing ? null : _deleteSong,
@@ -243,28 +223,39 @@ class _EditSongPageState extends State<EditSongPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildImagePicker(),
+              SongCoverPicker(
+                localFile: _newImageFile,
+                networkImageUrl: widget.songData['image'],
+                onTap: _pickImage,
+              ),
               const SizedBox(height: 30),
-              _buildLabel("Song Name (Song - Artist)"),
+
+              const SongFormLabel(text: "Song Name (Song - Artist)"),
               _buildAutocompleteField(
                 _nameController,
                 "Song Name",
                 'song',
                 _nameFocus,
               ),
+
               const SizedBox(height: 20),
-              _buildLabel("Category"),
-              _buildDropdown(),
+              const SongFormLabel(text: "Category"),
+              SongCategoryDropdown(
+                value: _selectedCategory,
+                onChanged: (val) => setState(() => _selectedCategory = val),
+              ),
+
               const SizedBox(height: 20),
-              _buildLabel("Artist Name"),
+              const SongFormLabel(text: "Artist Name"),
               _buildAutocompleteField(
                 _artistController,
                 "Artist Name",
                 'artist',
                 _artistFocus,
               ),
+
               const SizedBox(height: 20),
-              _buildLabel("Album Name (Optional)"),
+              const SongFormLabel(text: "Album Name (Optional)"),
               _buildAutocompleteField(
                 _albumController,
                 "Album Name",
@@ -272,24 +263,24 @@ class _EditSongPageState extends State<EditSongPage> {
                 _albumFocus,
                 isOptional: true,
               ),
+
               const SizedBox(height: 20),
-              _buildLabel("Song Link"),
-              _buildTextField(
-                _linkController,
-                "Song Link URL",
+              const SongFormLabel(text: "Song Link"),
+              SongFormTextField(
+                controller: _linkController,
+                hint: "Song Link URL",
                 focusNode: FocusNode(),
                 isOptional: true,
               ),
+
               const SizedBox(height: 40),
-              _buildSubmitButton(),
+              _buildSubmitButton(isCustom),
             ],
           ),
         ),
       ),
     );
   }
-
-  // --- UI Components (Theme-Matched) ---
 
   Widget _buildAutocompleteField(
     TextEditingController controller,
@@ -300,188 +291,54 @@ class _EditSongPageState extends State<EditSongPage> {
   }) {
     return Column(
       children: [
-        _buildTextField(
-          controller,
-          hint,
+        SongFormTextField(
+          controller: controller,
+          hint: hint,
           focusNode: focusNode,
           isOptional: isOptional,
           onChanged: (val) {
-            if (type == 'song' || type == 'artist') {
-              if (_snapshotSpotifySong != null ||
-                  _snapshotSpotifyArtist != null) {
-                setState(() {
-                  _snapshotSpotifySong = null;
-                  _snapshotSpotifyArtist = null;
-                });
-              }
+            // Reset snapshot เมื่อผู้ใช้แก้ชื่อเพลง/ศิลปิน
+            if ((type == 'song' || type == 'artist') &&
+                (_snapshotSpotifySong != null ||
+                    _snapshotSpotifyArtist != null)) {
+              setState(() {
+                _snapshotSpotifySong = null;
+                _snapshotSpotifyArtist = null;
+              });
             }
-            _fetchMetadataSuggestions(val, type);
+            _fetchSuggestions(val, type);
           },
         ),
-        if (focusNode.hasFocus) _buildSuggestionsContainer(type),
+        if (focusNode.hasFocus)
+          SongSuggestionsContainer(
+            type: type,
+            songObjects: _songObjects,
+            suggestedArtists: _suggestedArtists,
+            suggestedAlbums: _suggestedAlbums,
+            onSongSelected: ({required name, required artist, required album}) {
+              setState(() {
+                _nameController.text = name;
+                _artistController.text = artist;
+                _albumController.text = album;
+                _snapshotSpotifySong = name;
+                _snapshotSpotifyArtist = artist;
+              });
+              _clearSuggestions();
+            },
+            onArtistSelected: (val) {
+              setState(() => _artistController.text = val);
+              _clearSuggestions();
+            },
+            onAlbumSelected: (val) {
+              setState(() => _albumController.text = val);
+              _clearSuggestions();
+            },
+          ),
       ],
     );
   }
 
-  Widget _buildSuggestionsContainer(String type) {
-    List<dynamic> suggestions = (type == 'song')
-        ? _songObjects
-        : (type == 'artist')
-        ? _suggestedArtists
-        : _suggestedAlbums;
-    if (suggestions.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      margin: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10)],
-      ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: suggestions.length,
-        itemBuilder: (context, index) {
-          final item = suggestions[index];
-          return ListTile(
-            title: Text(
-              type == 'song' ? item['display'] : item.toString(),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            onTap: () {
-              setState(() {
-                if (type == 'song') {
-                  _nameController.text = item['name'];
-                  _artistController.text = item['artist'];
-                  _albumController.text = item['album'];
-                  _snapshotSpotifySong = item['name'];
-                  _snapshotSpotifyArtist = item['artist'];
-                } else if (type == 'artist')
-                  _artistController.text = item;
-                else
-                  _albumController.text = item;
-                _songObjects = [];
-                _suggestedArtists = [];
-                _suggestedAlbums = [];
-              });
-              FocusScope.of(context).unfocus();
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildImagePicker() {
-    return Center(
-      child: GestureDetector(
-        onTap: _pickImage,
-        child: Container(
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2C2C2C),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: _newImageFile != null
-                ? Image.file(_newImageFile!, fit: BoxFit.cover)
-                : Image.network(
-                    widget.songData['image'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: const Color(0xFF2C2C2C),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              color: Colors.white24,
-                              size: 40,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              "No Image Found",
-                              style: TextStyle(
-                                color: Colors.white24,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    TextEditingController ctrl,
-    String hint, {
-    required FocusNode focusNode,
-    Function(String)? onChanged,
-    bool isOptional = false,
-  }) {
-    return TextFormField(
-      controller: ctrl,
-      focusNode: focusNode,
-      onChanged: onChanged,
-      style: const TextStyle(color: Colors.white),
-      validator: (v) =>
-          (!isOptional && (v == null || v.isEmpty)) ? "Required" : null,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24),
-        filled: true,
-        fillColor: const Color(0xFF2C2C2C),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategory,
-      dropdownColor: const Color(0xFF2C2C2C),
-      hint: const Text(
-        "Select Category",
-        style: TextStyle(color: Colors.white24),
-      ),
-      items: _categories
-          .map(
-            (c) => DropdownMenuItem(
-              value: c,
-              child: Text(c, style: const TextStyle(color: Colors.white)),
-            ),
-          )
-          .toList(),
-      onChanged: (val) {
-        setState(() => _selectedCategory = val);
-      },
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: const Color(0xFF2C2C2C),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      validator: (value) => value == null ? 'Please select a category' : null,
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    final bool isCustom = widget.songData['is_custom'] == true;
+  Widget _buildSubmitButton(bool isCustom) {
     return SizedBox(
       width: double.infinity,
       height: 55,
@@ -507,11 +364,6 @@ class _EditSongPageState extends State<EditSongPage> {
       ),
     );
   }
-
-  Widget _buildLabel(String text) => Padding(
-    padding: const EdgeInsets.only(left: 8, bottom: 8),
-    child: Text(text, style: const TextStyle(color: Colors.white70)),
-  );
 
   Future<bool> _showConfirmDialog() async {
     return await showDialog(
