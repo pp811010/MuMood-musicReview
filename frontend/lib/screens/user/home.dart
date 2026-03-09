@@ -345,10 +345,6 @@ class _HomeState extends State<Home> {
             ),
           ),
           SizedBox(width: 10),
-          // Icon(
-          //   Icons.local_fire_department,
-          //   color: const Color.fromARGB(255, 30, 132, 220),
-          // ),
         ],
       ),
     );

@@ -6,11 +6,10 @@ import '../../services/song_service.dart';
 import '../../models/song_detail.dart';
 import '../user/song_detail.dart';
 
-// ─── Model สำหรับ card แต่ละใบใน history ──────────────────────────────────
 class _HistoryEntry {
   final String songId;
   final bool hasReview;
-  final Map<String, dynamic>? reviewData; // beat/lyric/mood score
+  final Map<String, dynamic>? reviewData;
   final int commentCount;
 
   const _HistoryEntry({
@@ -20,8 +19,6 @@ class _HistoryEntry {
     required this.commentCount,
   });
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -56,7 +53,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadData() async {
     try {
-      // ── โหลด profile + review + comment history พร้อมกัน ──
       final results = await Future.wait([
         ApiService.getProfile(),
         fetchMyReviews(),
@@ -67,25 +63,21 @@ class _HistoryPageState extends State<HistoryPage> {
       final reviews = (results[1] as List).cast<Map<String, dynamic>>();
       final commentGroups = (results[2] as List).cast<Map<String, dynamic>>();
 
-      // ── Map: song_id → review data ──
       final reviewBySongId = <String, Map<String, dynamic>>{};
       for (final r in reviews) {
         reviewBySongId[r['song_id'].toString()] = r;
       }
 
-      // ── Map: song_id → comment count ──
       final commentCountBySongId = <String, int>{};
       for (final g in commentGroups) {
         commentCountBySongId[g['song_id'].toString()] = g['count'] as int;
       }
 
-      // ── Merge: union ของ song_id จากทั้ง 2 source ──
       final allSongIds = <String>{
         ...reviewBySongId.keys,
         ...commentCountBySongId.keys,
       };
 
-      // ── โหลด song detail สำหรับทุก song_id ──
       await Future.wait(
         allSongIds.map((id) async {
           if (!_songCache.containsKey(id)) {
@@ -97,7 +89,6 @@ class _HistoryPageState extends State<HistoryPage> {
         }),
       );
 
-      // ── สร้าง entries เรียง: มี review ก่อน, จากนั้น comment-only ──
       final entries =
           allSongIds.map((id) {
             return _HistoryEntry(
@@ -107,7 +98,6 @@ class _HistoryPageState extends State<HistoryPage> {
               commentCount: commentCountBySongId[id] ?? 0,
             );
           }).toList()..sort((a, b) {
-            // review+comment > review only > comment only
             final aScore = (a.hasReview ? 2 : 0) + (a.commentCount > 0 ? 1 : 0);
             final bScore = (b.hasReview ? 2 : 0) + (b.commentCount > 0 ? 1 : 0);
             return bScore.compareTo(aScore);
@@ -130,8 +120,6 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
   }
-
-  // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -231,8 +219,6 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  // ─── Card ──────────────────────────────────────────────────────────────────
-
   Widget _buildHistoryCard(_HistoryEntry entry) {
     final songData = _songCache[entry.songId];
     final coverUrl = songData?.image;
@@ -269,7 +255,6 @@ class _HistoryPageState extends State<HistoryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Badges ────────────────────────────────────────────────
             Row(
               children: [
                 _typeBadge(
@@ -290,8 +275,6 @@ class _HistoryPageState extends State<HistoryPage> {
               ],
             ),
             const SizedBox(height: 12),
-
-            // ── Song info ─────────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -329,7 +312,6 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                       const SizedBox(height: 12),
 
-                      // ── Scores (เฉพาะเมื่อมี review) ────────────────
                       if (entry.hasReview && beatScore != null)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -340,7 +322,6 @@ class _HistoryPageState extends State<HistoryPage> {
                           ],
                         )
                       else
-                        // comment-only: ไม่มี score แสดง placeholder
                         Text(
                           'ยังไม่ได้ review เพลงนี้',
                           style: TextStyle(color: Colors.white30, fontSize: 12),

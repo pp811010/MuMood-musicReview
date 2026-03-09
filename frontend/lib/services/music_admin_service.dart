@@ -27,7 +27,10 @@ class MusicAdminService {
     File? imageFile,
   }) async {
     // 1. สร้าง Request แบบ PATCH ไปที่ /songs/{id}
-    var request = http.MultipartRequest('PATCH', Uri.parse('$baseUrl/songs/$id'));
+    var request = http.MultipartRequest(
+      'PATCH',
+      Uri.parse('$baseUrl/songs/$id'),
+    );
 
     // 2. เพิ่มข้อมูล Text Fields (ใส่เฉพาะค่าที่ไม่เป็น null)
     if (name != null) request.fields['song_name'] = name;

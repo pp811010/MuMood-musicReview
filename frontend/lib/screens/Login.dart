@@ -55,8 +55,6 @@ class _LoginState extends State<Login> {
     );
   }
 
-  /// ตรวจสอบ password ตามเงื่อนไข
-  /// คืน null = ผ่าน, คืน String = error message
   String? _validatePassword(String password) {
     if (password.length < 8) {
       return "Password ต้องมีอย่างน้อย 8 ตัวอักษร";
@@ -74,7 +72,6 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> _login() async {
-    // Admin bypass ก่อน — ไม่ต้องผ่าน email validation
     if (_emailController.text == "admin555" &&
         _passwordController.text == "admin12345678") {
       Navigator.pushAndRemoveUntil(
@@ -85,7 +82,6 @@ class _LoginState extends State<Login> {
       return;
     }
 
-    // Validate email ต้องมี @ และลงท้าย .com
     final email = _emailController.text.trim();
     if (!email.contains('@') || !email.toLowerCase().endsWith('.com')) {
       _showErrorSnackBar(
@@ -94,7 +90,6 @@ class _LoginState extends State<Login> {
       return;
     }
 
-    // Validate password
     final password = _passwordController.text;
     final passwordError = _validatePassword(password);
     if (passwordError != null) {
@@ -228,7 +223,6 @@ class _LoginState extends State<Login> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
-                    // Header Logo
                     Row(
                       children: [
                         const Text(
@@ -258,7 +252,6 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 30),
 
-                    // Email Input
                     const Text('Email', style: TextStyle(color: Colors.white)),
                     const SizedBox(height: 10),
                     TextField(
@@ -278,7 +271,6 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 20),
 
-                    // Password Input
                     const Text(
                       'Password',
                       style: TextStyle(color: Colors.white),
@@ -314,7 +306,6 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 10),
 
-                    // Remember Me & Forgot Password Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -322,9 +313,7 @@ class _LoginState extends State<Login> {
                           children: [
                             Checkbox(
                               value: _rememberMe,
-                              activeColor: const Color(
-                                0xFF1DB954,
-                              ), // Spotify Green
+                              activeColor: const Color(0xFF1DB954),
                               checkColor: Colors.black,
                               side: const BorderSide(color: Colors.white54),
                               onChanged: (value) {
@@ -344,7 +333,6 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 20),
 
-                    // Sign In Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -377,7 +365,6 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 20),
 
-                    // Don't have an account? Sign Up Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
