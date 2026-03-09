@@ -42,6 +42,15 @@ class _InventoryPageState extends State<InventoryPage> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    final query = _searchController.text.trim();
+    if (query.isNotEmpty) {
+      await fetchSongsFromSpotify(query);
+    } else {
+      await loadSongsFromDb();
+    }
+  }
+
   Future<void> fetchSongsFromSpotify(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
@@ -131,7 +140,6 @@ class _InventoryPageState extends State<InventoryPage> {
       context,
     ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
-
 
   @override
   void dispose() {
@@ -223,45 +231,62 @@ class _InventoryPageState extends State<InventoryPage> {
         : displaySongs.length;
 
     if (displaySongs.isEmpty && !showAddButton) {
-      return Center(
-        child: Text(
-          "No songs found in $type",
-          style: const TextStyle(color: Colors.white54),
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        color: Colors.green,
+        backgroundColor: const Color(0xFF1E1E1E),
+        child: ListView(
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Center(
+                child: Text(
+                  "No songs found in $type",
+                  style: const TextStyle(color: Colors.white54),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 15,
-        mainAxisSpacing: 15,
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: Colors.green,
+      backgroundColor: const Color(0xFF1E1E1E),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 15,
+          mainAxisSpacing: 15,
+        ),
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (showAddButton && index == 0) return _buildAddCustomMusicCard();
+
+          final songIndex = showAddButton ? index - 1 : index;
+          final song = displaySongs[songIndex];
+
+          return GestureDetector(
+            onTap: () async {
+              bool? updated = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditSongPage(songData: song),
+                ),
+              );
+
+              if (updated == true) {
+                loadSongsFromDb();
+              }
+            },
+            child: _buildMusicCard(song),
+          );
+        },
       ),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (showAddButton && index == 0) return _buildAddCustomMusicCard();
-
-        final songIndex = showAddButton ? index - 1 : index;
-        final song = displaySongs[songIndex];
-
-        return GestureDetector(
-          onTap: () async {
-            bool? updated = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EditSongPage(songData: song),
-              ),
-            );
-
-            if (updated == true) {
-              loadSongsFromDb();
-            }
-          },
-          child: _buildMusicCard(song),
-        );
-      },
     );
   }
 
@@ -313,7 +338,7 @@ class _InventoryPageState extends State<InventoryPage> {
       finalImageUrl = "$baseUrl/$rawImageUrl";
     }
 
-    return Stack( // ใช้ Stack เพื่อวางปุ่มลบทับบนรูป
+    return Stack(
       children: [
         Container(
           decoration: BoxDecoration(
@@ -355,7 +380,7 @@ class _InventoryPageState extends State<InventoryPage> {
             ],
           ),
         ),
-        
+
         if (song['is_custom'] == true)
           Positioned(
             top: 5,

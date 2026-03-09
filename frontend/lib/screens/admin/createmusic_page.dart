@@ -1,8 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+
+import 'package:frontend/services/song_service.dart';
+import 'package:frontend/widgets/song_form/song_category_dropdown.dart';
+import 'package:frontend/widgets/song_form/song_cover_picker.dart';
+import 'package:frontend/widgets/song_form/song_form_label.dart';
+import 'package:frontend/widgets/song_form/song_form_text_field.dart';
+import 'package:frontend/widgets/song_form/song_suggestions_container.dart';
 
 class CreatemusicPage extends StatefulWidget {
   const CreatemusicPage({super.key});
@@ -16,7 +21,6 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
 
-  // FocusNodes สำหรับควบคุมการแสดงผล Suggestion ตามการเลือกช่อง
   final FocusNode _songFocusNode = FocusNode();
   final FocusNode _artistFocusNode = FocusNode();
   final FocusNode _albumFocusNode = FocusNode();
@@ -35,23 +39,9 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   List<String> _suggestedArtists = [];
   List<String> _suggestedAlbums = [];
 
-  final List<String> _categories = [
-    'Pop',
-    'Rock',
-    'Jazz',
-    'Hip-Hop',
-    'Classical',
-    'R&B',
-    'K-Pop',
-    'Indie',
-    'Metal',
-    'EDM',
-  ];
-
   @override
   void initState() {
     super.initState();
-    // สั่ง Rebuild เมื่อ Focus เปลี่ยนเพื่อซ่อน/แสดง Suggestion List
     _songFocusNode.addListener(() => setState(() {}));
     _artistFocusNode.addListener(() => setState(() {}));
     _albumFocusNode.addListener(() => setState(() {}));
@@ -69,8 +59,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
     super.dispose();
   }
 
-  // --- Logic: Search Metadata (Hybrid DB + Spotify) ---
-  Future<void> _fetchMetadataSuggestions(String query, String type) async {
+  Future<void> _fetchSuggestions(String query, String type) async {
     if (query.trim().length < 2) {
       setState(() {
         if (type == 'song') _songObjects = [];
@@ -79,23 +68,12 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       });
       return;
     }
-
-    try {
-      final response = await http.get(
-        Uri.parse("http://10.0.2.2:8000/admin/search-metadata?query=$query"),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _songObjects = List<Map<String, dynamic>>.from(data['songs'] ?? []);
-          _suggestedArtists = List<String>.from(data['artists'] ?? []);
-          _suggestedAlbums = List<String>.from(data['albums'] ?? []);
-        });
-      }
-    } catch (e) {
-      debugPrint("Suggestions error: $e");
-    }
+    final result = await fetchMetadataSuggestions(query);
+    setState(() {
+      _songObjects = result['songs'];
+      _suggestedArtists = result['artists'];
+      _suggestedAlbums = result['albums'];
+    });
   }
 
   Future<void> _pickImage() async {
@@ -113,16 +91,13 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
     }
   }
 
-  // --- Logic: Create Song with Double Validation ---
   Future<void> _createSong() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ป้องกันการโกง: เทียบเนื้อหาจริง (Case-Insensitive) กับค่า Snapshot ดั้งเดิม
-    // ไม่ว่าผู้ใช้จะแก้แล้วแก้กลับ หรือเปลี่ยนตัวพิมพ์ ระบบจะตรวจเจอเสมอ
+    // ป้องกันการโกง: เทียบกับ Snapshot Spotify (Case-Insensitive)
     final currentSong = _songNameController.text.trim().toLowerCase();
     final currentArtist = _artistNameController.text.trim().toLowerCase();
-
-    bool isMatchSpotify =
+    final isMatchSpotify =
         _snapshotSpotifySong != null &&
         currentSong == _snapshotSpotifySong!.toLowerCase().trim() &&
         currentArtist == _snapshotSpotifyArtist!.toLowerCase().trim();
@@ -134,7 +109,6 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       );
       return;
     }
-
     if (_imageFile == null) {
       _showSnackBar("Please select a song cover image", Colors.orange);
       return;
@@ -146,37 +120,25 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
 
     setState(() => _isUploading = true);
 
-    try {
-      var uri = Uri.parse("http://10.0.2.2:8000/admin/songs/create");
-      var request = http.MultipartRequest("POST", uri);
+    final result = await createSong(
+      songName: _songNameController.text.trim(),
+      category: _selectedCategory!,
+      artistName: _artistNameController.text.trim(),
+      albumName: _albumNameController.text.trim(),
+      linkUrl: _linkController.text.trim(),
+      imageFile: _imageFile!,
+    );
 
-      request.fields['song_name'] = _songNameController.text.trim();
-      request.fields['category'] = _selectedCategory!;
-      request.fields['artist_name'] = _artistNameController.text.trim();
-      request.fields['album_name'] = _albumNameController.text.trim();
-      request.fields['link_url'] = _linkController.text.trim();
+    if (mounted) setState(() => _isUploading = false);
 
-      request.files.add(
-        await http.MultipartFile.fromPath('file', _imageFile!.path),
+    if (result.isSuccess) {
+      _showSnackBar("Song created successfully!", Colors.green);
+      Future.delayed(
+        const Duration(seconds: 1),
+        () { if (mounted) Navigator.pop(context, true); },
       );
-
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSnackBar("Song created successfully!", Colors.green);
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) Navigator.pop(context, true);
-        });
-      } else {
-        // ระบบตรวจสอบด่านสุดท้ายจาก Database
-        var errorMsg = json.decode(response.body)['detail'] ?? "Upload failed";
-        _showSnackBar("Error: $errorMsg", Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar("Connection Error: $e", Colors.red);
-    } finally {
-      if (mounted) setState(() => _isUploading = false);
+    } else {
+      _showSnackBar("Error: ${result.errorMessage}", Colors.red);
     }
   }
 
@@ -188,6 +150,14 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  void _clearSuggestions() {
+    setState(() {
+      _songObjects = [];
+      _suggestedArtists = [];
+      _suggestedAlbums = [];
+    });
   }
 
   @override
@@ -213,10 +183,10 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildImagePicker(),
+              SongCoverPicker(localFile: _imageFile, onTap: _pickImage),
               const SizedBox(height: 30),
 
-              _buildLabel("Song Name (Song - Artist)"),
+              const SongFormLabel(text: "Song Name (Song - Artist)"),
               _buildAutocompleteField(
                 _songNameController,
                 "Enter Song Name",
@@ -225,11 +195,14 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
               ),
 
               const SizedBox(height: 20),
-              _buildLabel("Category"),
-              _buildDropdown(),
+              const SongFormLabel(text: "Category"),
+              SongCategoryDropdown(
+                value: _selectedCategory,
+                onChanged: (val) => setState(() => _selectedCategory = val),
+              ),
 
               const SizedBox(height: 20),
-              _buildLabel("Artist Name"),
+              const SongFormLabel(text: "Artist Name"),
               _buildAutocompleteField(
                 _artistNameController,
                 "Search Artist",
@@ -238,7 +211,7 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
               ),
 
               const SizedBox(height: 20),
-              _buildLabel("Album Name (Optional)"),
+              const SongFormLabel(text: "Album Name (Optional)"),
               _buildAutocompleteField(
                 _albumNameController,
                 "Search Album",
@@ -248,11 +221,12 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
               ),
 
               const SizedBox(height: 20),
-              _buildLabel("Song Link (Spotify/YouTube URL)"),
-              _buildTextField(
-                _linkController,
-                "Enter link URL",
+              const SongFormLabel(text: "Song Link (Spotify/YouTube URL)"),
+              SongFormTextField(
+                controller: _linkController,
+                hint: "Enter link URL",
                 focusNode: FocusNode(),
+                isOptional: true,
               ),
 
               const SizedBox(height: 40),
@@ -264,8 +238,6 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
     );
   }
 
-  // --- UI Components ---
-
   Widget _buildAutocompleteField(
     TextEditingController controller,
     String hint,
@@ -275,170 +247,39 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
   }) {
     return Column(
       children: [
-        _buildTextField(
-          controller,
-          hint,
+        SongFormTextField(
+          controller: controller,
+          hint: hint,
           focusNode: focusNode,
           isOptional: isOptional,
-          onChanged: (val) {
-            _fetchMetadataSuggestions(val, type);
-          },
+          onChanged: (val) => _fetchSuggestions(val, type),
         ),
-        if (focusNode.hasFocus) _buildSuggestionsContainer(type),
-      ],
-    );
-  }
-
-  Widget _buildSuggestionsContainer(String type) {
-    List<dynamic> suggestions;
-    if (type == 'song')
-      suggestions = _songObjects;
-    else if (type == 'artist')
-      suggestions = _suggestedArtists;
-    else
-      suggestions = _suggestedAlbums;
-
-    if (suggestions.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      margin: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 10)],
-      ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: suggestions.length,
-        itemBuilder: (context, index) {
-          final item = suggestions[index];
-          final String displayLabel = type == 'song'
-              ? item['display']
-              : item.toString();
-
-          return ListTile(
-            title: Text(
-              displayLabel,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-            onTap: () {
+        if (focusNode.hasFocus)
+          SongSuggestionsContainer(
+            type: type,
+            songObjects: _songObjects,
+            suggestedArtists: _suggestedArtists,
+            suggestedAlbums: _suggestedAlbums,
+            onSongSelected: ({required name, required artist, required album}) {
               setState(() {
-                if (type == 'song') {
-                  _songNameController.text = item['name'];
-                  _artistNameController.text = item['artist'];
-                  _albumNameController.text = item['album'];
-
-                  _snapshotSpotifySong = item['name'];
-                  _snapshotSpotifyArtist = item['artist'];
-                } else if (type == 'artist') {
-                  _artistNameController.text = item;
-                } else {
-                  _albumNameController.text = item;
-                }
-                _songObjects = [];
-                _suggestedArtists = [];
-                _suggestedAlbums = [];
+                _songNameController.text = name;
+                _artistNameController.text = artist;
+                _albumNameController.text = album;
+                _snapshotSpotifySong = name;
+                _snapshotSpotifyArtist = artist;
               });
-              FocusScope.of(context).unfocus();
+              _clearSuggestions();
             },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTextField(
-    TextEditingController controller,
-    String hint, {
-    required FocusNode focusNode,
-    Function(String)? onChanged,
-    bool isOptional = false,
-  }) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      onChanged: onChanged,
-      style: const TextStyle(color: Colors.white),
-      validator: (val) {
-        if (isOptional) return null;
-        return (val == null || val.isEmpty) ? "*Required" : null;
-      },
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white24),
-        filled: true,
-        fillColor: const Color(0xFF2C2C2C),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImagePicker() {
-    return Center(
-      child: GestureDetector(
-        onTap: _pickImage,
-        child: Container(
-          width: 160,
-          height: 160,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2C2C2C),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white12),
+            onArtistSelected: (val) {
+              setState(() => _artistNameController.text = val);
+              _clearSuggestions();
+            },
+            onAlbumSelected: (val) {
+              setState(() => _albumNameController.text = val);
+              _clearSuggestions();
+            },
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: _imageFile != null
-                ? Image.file(_imageFile!, fit: BoxFit.cover)
-                : const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.image_outlined,
-                        size: 50,
-                        color: Colors.white54,
-                      ),
-                      Text(
-                        "Add Cover",
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategory,
-      dropdownColor: const Color(0xFF2C2C2C),
-      hint: const Text(
-        "Select Category",
-        style: TextStyle(color: Colors.white24),
-      ),
-      items: _categories
-          .map(
-            (c) => DropdownMenuItem(
-              value: c,
-              child: Text(c, style: const TextStyle(color: Colors.white)),
-            ),
-          )
-          .toList(),
-      onChanged: (val) => setState(() => _selectedCategory = val),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: const Color(0xFF2C2C2C),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      validator: (value) => value == null ? '*Please select a category' : null,
+      ],
     );
   }
 
@@ -467,9 +308,4 @@ class _CreatemusicPageState extends State<CreatemusicPage> {
       ),
     );
   }
-
-  Widget _buildLabel(String text) => Padding(
-    padding: const EdgeInsets.only(left: 8, bottom: 8),
-    child: Text(text, style: const TextStyle(color: Colors.white70)),
-  );
 }
