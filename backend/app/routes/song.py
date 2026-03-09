@@ -45,7 +45,7 @@ async def search_songs(q: str, db: SessionDep):
             "artist": s.artist_name,
             "image": img,
             "source": "db",
-            "preview_url": s.preview_url,
+            "link_url": s.link_url,
             "is_custom": s.is_custom_added
         })
 
@@ -76,11 +76,6 @@ async def search_songs(q: str, db: SessionDep):
 async def create_song(song: SongCreate, db: SessionDep):
     song_data = song.model_dump()
     
-    if not song_data.get("preview_url"):
-        song_data["preview_url"] = await fetch_deezer_preview(
-            song_name=song_data.get("song_name", ""),
-            artist_name=song_data.get("artist_name", "")
-        )
         
     db_song = Song(**song_data)
     db.add(db_song)
