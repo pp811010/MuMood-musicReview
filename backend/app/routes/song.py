@@ -158,11 +158,8 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
                 new_count = old_count + 1
                 color_counts[hex_color] = new_count
                 
-                # เก็บสีล่าสุดสำหรับ count นี้
                 if new_count not in latest_color_per_count:
                     latest_color_per_count[new_count] = hex_color
-                # ถ้ามี count เท่ากัน ให้เอาสีที่ loop มาทีหลัง (ซึ่งเป็นสีเก่ากว่า)
-                # แต่เราต้องการสีล่าสุด ดังนั้นไม่ต้อง update
 
         fav_stmt = select(Favorite).where(
             Favorite.song_id == db_song.id,
@@ -171,11 +168,10 @@ async def get_song_detail(identifier: str, db: SessionDep, current_user: User = 
         fav_result = await db.execute(fav_stmt)
         is_favorite = fav_result.scalar_one_or_none() is not None
 
-        # หา dominant color: ถ้ามีหลายสีที่ count เท่ากัน เอาสีที่ถูกเลือกล่าสุด
         dominant_color = None
         if color_counts:
             max_count = max(color_counts.values())
-            # หาสีทั้งหมดที่มี max_count
+
             colors_with_max_count = [
                 color for color, count in color_counts.items() 
                 if count == max_count

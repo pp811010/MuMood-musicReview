@@ -68,7 +68,6 @@ class Review(Base):
     beat_score = Column(Float, nullable=True) 
     lyric_score = Column(Float, nullable=True)
     mood_score = Column(Float, nullable=True) 
-    comment = Column(Text, nullable=True)  
     
     created_at = Column(DateTime(timezone=True), default=get_now_utc)
     updated_at = Column(DateTime(timezone=True), default=get_now_utc, onupdate=get_now_utc)
@@ -77,6 +76,10 @@ class Review(Base):
     song = relationship("Song", back_populates="reviews")
     emotion = relationship("Emotion", back_populates="reviews")
     mood_color = relationship("MoodColor", back_populates="reviews")
+
+
+class Comment(Base):
+    
 
 
 class Favorite(Base):

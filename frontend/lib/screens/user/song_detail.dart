@@ -12,7 +12,6 @@ import 'package:frontend/widgets/emotion_chip.dart';
 import 'package:frontend/widgets/score_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class MusicDetail extends StatefulWidget {
   final String id;
@@ -230,7 +229,7 @@ class _MusicDetailState extends State<MusicDetail> {
         setState(() => _isEditingReview = false);
         await _fetchDetailSong(isSilent: true);
       } else {
-        _showSnack("Something went wrong", Colors.red);
+        _showSnack("Something went wrong Rating submitted", Colors.red);
       }
     } finally {
       setState(() => _isSubmitting = false);
@@ -301,11 +300,16 @@ class _MusicDetailState extends State<MusicDetail> {
     );
     if (result != null) {
       setState(() => isfavorite = result.isFavorited);
-      _showSnack(result.message, result.isFavorited ?  Colors.green:const Color.fromARGB(255, 175, 76, 76));
+      _showSnack(
+        result.message,
+        result.isFavorited
+            ? Colors.green
+            : const Color.fromARGB(255, 175, 76, 76),
+      );
     }
   }
 
-  Future<void> _togglePreview() async {
+  Future<void> _togglePlayAudio() async {
     if (songDetail?.previewUrl == null) return;
 
     final playerState = _audioPlayer.playerState;
@@ -338,9 +342,6 @@ class _MusicDetailState extends State<MusicDetail> {
     if (_commentController.text.trim().isEmpty) return;
     try {
       if (myReview.isEmpty) {
-        // ใช้ endpoint ใหม่ที่แยก comment จาก rating
-        await _submitCommentStandalone();
-      } else if (myReview['comment'] == null) {
         await _submitCommentStandalone();
       } else {
         await _updateComment();
@@ -506,7 +507,6 @@ class _MusicDetailState extends State<MusicDetail> {
                         const SizedBox(height: 25),
                         _buildColorMoodSection(),
                         const SizedBox(height: 20),
-                        // ─── ปุ่ม Edit / Submit ───
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
@@ -635,7 +635,6 @@ class _MusicDetailState extends State<MusicDetail> {
         Stack(
           alignment: Alignment.center,
           children: [
-            // ── รูปปก ──
             Container(
               width: 280,
               height: 280,
@@ -678,10 +677,9 @@ class _MusicDetailState extends State<MusicDetail> {
             ),
 
             // ── Play / Pause button ตรงกลาง ──
-            // ── Play / Pause button ตรงกลาง ──
             if (songDetail!.previewUrl != null)
               GestureDetector(
-                onTap: _togglePreview,
+                onTap: _togglePlayAudio,
                 child: Container(
                   width: 60,
                   height: 60,
@@ -729,7 +727,6 @@ class _MusicDetailState extends State<MusicDetail> {
 
         const SizedBox(height: 16),
 
-        // ── ชื่อเพลง + ไอคอนลิงก์ ──
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -785,11 +782,9 @@ class _MusicDetailState extends State<MusicDetail> {
           count: emotionCounts[emotion.name] ?? 0,
           selectedColor: selectedColor,
           onTap: () {
-            // lock ถ้า submit แล้วและยังไม่ได้กด Edit
             if (myReview.isNotEmpty && !_isEditingReview) return;
             setState(() {
               if (selectedEmotion == emotion.name) {
-                // deselect ได้ตามปกติ
                 selectedEmotion = null;
                 selectedEmotionId = null;
                 emotionCounts[emotion.name] =
@@ -825,22 +820,22 @@ class _MusicDetailState extends State<MusicDetail> {
             Expanded(
               child: ScoreCard(
                 score:
-                    songDetail!.avgScores['beat']?.toStringAsFixed(2) ?? '0.00',
+                    songDetail!.avgScores['beat']?.toStringAsFixed(1) ?? '0.0',
                 label: 'Beat',
               ),
             ),
             Expanded(
               child: ScoreCard(
                 score:
-                    songDetail!.avgScores['lyric']?.toStringAsFixed(2) ??
-                    '0.00',
+                    songDetail!.avgScores['lyric']?.toStringAsFixed(1) ??
+                    '0.0',
                 label: 'Lyric',
               ),
             ),
             Expanded(
               child: ScoreCard(
                 score:
-                    songDetail!.avgScores['mood']?.toStringAsFixed(2) ?? '0.00',
+                    songDetail!.avgScores['mood']?.toStringAsFixed(1) ?? '0.0',
                 label: 'Mood',
               ),
             ),
@@ -949,7 +944,6 @@ class _MusicDetailState extends State<MusicDetail> {
     );
   }
 
-  // ─── COMMENT SECTION ──────────────────────────────────────────────────────
 
   Widget _buildCommentSection() {
     final comments = songDetail!.comment;
