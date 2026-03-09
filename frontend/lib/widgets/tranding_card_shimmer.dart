@@ -24,7 +24,7 @@ class TrendingCardShimmer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    height: 150, // ต้องกำหนด height แทน Expanded
+                    height: 150,
                     width: 150,
                     decoration: BoxDecoration(
                       color: Colors.grey[850],

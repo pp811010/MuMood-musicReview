@@ -1,20 +1,18 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 
 class ApiService {
-  // ยังคงเก็บ baseUrl ไว้ใช้สำหรับ Login
   static const String baseUrl = 'http://10.0.2.2:8000';
 
-  // ─── Token Helpers ───
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('access_token');
   }
 
-  // ปรับแก้ให้เซฟ refresh_token ด้วย เพื่อให้ ApiClient นำไปใช้ต่อได้
   static Future<void> saveToken(
     String accessToken, [
     String? refreshToken,
@@ -32,9 +30,6 @@ class ApiService {
     await prefs.remove('refresh_token');
   }
 
-  // ─── Auth ───
-
-  /// POST /users/login/\
   static Future<String> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/users/login/'),
@@ -54,9 +49,6 @@ class ApiService {
     }
   }
 
-  // ─── User Profile ───
-
-  /// GET /users/profile
   static Future<Map<String, dynamic>> getProfile() async {
     final response = await ApiClient.get('/users/profile');
 
@@ -64,6 +56,16 @@ class ApiService {
       return jsonDecode(response.body) as Map<String, dynamic>;
     } else {
       throw Exception('Failed to load profile: ${response.body}');
+    }
+  }
+
+  static Future<void> logout() async {
+    try {
+      await ApiClient.post('/users/logout', {});
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    } finally {
+      await clearToken();
     }
   }
 }

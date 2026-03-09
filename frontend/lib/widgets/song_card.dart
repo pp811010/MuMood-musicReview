@@ -14,8 +14,7 @@ class SongCard extends StatelessWidget {
     final imageUrl = music.image.startsWith('/') 
       ? 'http://10.0.2.2:8000${music.image}' 
       : music.image;
-    
-    debugPrint(imageUrl);
+  
 
     return SizedBox(
       width: width,
@@ -35,7 +34,7 @@ class SongCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(15),
                 child: Image.network(
-                  music.image,
+                  imageUrl,
                   fit: BoxFit.cover,
                   width: double.infinity,
                 ),

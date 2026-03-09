@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:frontend/core/api_client.dart';
-import 'package:frontend/widgets/song.card.dart';
+import 'package:frontend/widgets/song_card.dart';
 import 'package:frontend/widgets/song_card_shimmer.dart';
 import 'package:frontend/widgets/trending_list.dart';
 import 'package:flutter/material.dart';

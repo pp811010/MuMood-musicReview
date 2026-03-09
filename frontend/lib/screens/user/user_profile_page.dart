@@ -66,9 +66,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _logout() async {
-    await ApiService.clearToken();
-    if (!mounted) return;
+  void _logout() async {
+    await ApiService.logout();
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const Login()),

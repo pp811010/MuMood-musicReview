@@ -13,7 +13,7 @@ class MainWrapper extends StatefulWidget {
 class _MainWrapperState extends State<MainWrapper> {
   int _selectedIndex = 0;
 
-  // รายการหน้าที่ต้องการสลับ
+
   final List<Widget> _pages = [
     InventoryPage(), 
     const ProfilePage(),  

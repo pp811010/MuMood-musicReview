@@ -17,7 +17,22 @@ class AutocompleteField extends StatelessWidget {
     this.validator,
   });
 
+
+
   @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 8),
+          child: Text(label, style: const TextStyle(color: Colors.white70)),
+        ),
+        _buildTextField(),
+      ],
+    );
+  }
+
   Widget _buildTextField() {
     return TextFormField(
       controller: controller,
@@ -36,20 +51,6 @@ class AutocompleteField extends StatelessWidget {
           borderSide: BorderSide.none,
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 8),
-          child: Text(label, style: const TextStyle(color: Colors.white70)),
-        ),
-        _buildTextField(),
-      ],
     );
   }
 }

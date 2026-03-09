@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/user/song_detail.dart';
 import 'package:frontend/widgets/tranding_card_shimmer.dart';
 
 class TrendingList extends StatelessWidget {
@@ -25,48 +26,65 @@ class TrendingList extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           itemCount: trendingSongs.length,
           itemBuilder: (context, index) {
-            final song = trendingSongs[index]; 
+            final song = trendingSongs[index];
             return Container(
               width: 150,
               margin: const EdgeInsets.only(right: 15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: Image.network(
-                      song['image']!,
-                      height: 150,
-                      width: 150,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Image error: $error'); // ดู error ใน console
-                        return Container(
-                          height: 150,
-                          width: 150,
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.music_note, color: Colors.white38),
-                        );
-                      },
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) =>
+                          MusicDetail(id: song['id'].toString()),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    song['title']!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  );
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Image.network(
+                        song['image']!,
+                        height: 150,
+                        width: 150,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Image error: $error');
+                          return Container(
+                            height: 150,
+                            width: 150,
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.music_note,
+                              color: Colors.white38,
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    song['artist']!,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      song['title']!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      song['artist']!,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
