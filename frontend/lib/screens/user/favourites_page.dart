@@ -158,10 +158,14 @@ class _FavoritePageState extends State<FavoritePage> {
                         ),
                     itemBuilder: (context, index) {
                       final song = _favoriteSongs[index];
-                      final coverUrl = song['song_cover_url'] as String?;
+                      // final coverUrl = song['song_cover_url'] as String?;
                       final songName = song['song_name'] ?? 'Unknown';
                       final artistName = song['artist_name'] ?? '';
                       final songId = (song['song_id'] ?? song['id']).toString();
+
+                      final coverUrl = song['song_cover_url'].startsWith('/')
+                          ? 'http://10.0.2.2:8000${song['song_cover_url']}'
+                          : song['song_cover_url'];
 
                       return GestureDetector(
                         onTap: () async {

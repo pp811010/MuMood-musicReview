@@ -221,7 +221,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _buildHistoryCard(_HistoryEntry entry) {
     final songData = _songCache[entry.songId];
-    final coverUrl = songData?.image;
+    final coverUrl = (songData?.image?.startsWith('/') == true)
+        ? 'http://10.0.2.2:8000${songData!.image}'
+        : songData?.image;
     final songName = songData?.songName ?? 'Unknow Song Name';
     final artistName = songData?.artistName ?? '';
 
