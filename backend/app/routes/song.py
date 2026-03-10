@@ -45,7 +45,6 @@ async def search_songs(q: str, db: SessionDep):
                 "artist": s.artist_name,
                 "image": img,
                 "source": "db",
-                "preview_url": s.preview_url,
                 "is_custom": s.is_custom_added,
             }
         )
@@ -83,8 +82,7 @@ async def search_songs(q: str, db: SessionDep):
 @router.post("/", response_model=SongResponse)
 async def create_song(song: SongCreate, db: SessionDep):
     song_data = song.model_dump()
-    
-        
+
     db_song = Song(**song_data)
     db.add(db_song)
     await db.commit()

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MusicCoverWidget extends StatelessWidget {
   final String songName;
@@ -8,6 +9,7 @@ class MusicCoverWidget extends StatelessWidget {
   final bool isPlaying;
   final Color selectedColor;
   final VoidCallback onTogglePreview;
+  final String? linkUrl;
 
   const MusicCoverWidget({
     super.key,
@@ -18,6 +20,7 @@ class MusicCoverWidget extends StatelessWidget {
     required this.isPlaying,
     required this.selectedColor,
     required this.onTogglePreview,
+    required this.linkUrl,
   });
 
   @override
@@ -124,6 +127,22 @@ class MusicCoverWidget extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
+            if (linkUrl != null && linkUrl!.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.tryParse(linkUrl!);
+                  if (uri != null && await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: const Icon(
+                  Icons.open_in_new_rounded,
+                  color: Colors.white54,
+                  size: 18,
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 4),

@@ -6,7 +6,6 @@ class UserCreate(BaseModel):
     email: str
     username: str
     favorite_genres: str
-    bio: str
     password: str
 
 class UserResponse(BaseModel):

@@ -579,6 +579,7 @@ class _MusicDetailState extends State<SongDetailPage> {
                           isPlaying: _isPlaying,
                           selectedColor: selectedColor,
                           onTogglePreview: _togglePreview,
+                          linkUrl: songDetail!.linkurl,
                         ),
                         const SizedBox(height: 30),
                         EmotionSection(

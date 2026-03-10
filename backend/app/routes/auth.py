@@ -30,7 +30,7 @@ async def register_user(user: UserCreate, db: SessionDep):
         email = user.email,
         favorite_genres=user.favorite_genres,
         password_hash = hash_password,
-        bio = user.bio
+        bio = 'user'
     )
     db.add(new_user)
     await db.commit()
