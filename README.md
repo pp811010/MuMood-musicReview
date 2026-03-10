@@ -7,26 +7,27 @@
 ## Features
 
 **1. Authentication**
-&nbsp;&nbsp;&nbsp;&nbsp;หน้า Login / Register มีแถบสลับโหมดด้านบน รองรับการกรอก Username หรือ Email พร้อม Password ที่ซ่อนตัวอักษร มีตัวเลือก Remember me และช่อง Confirm Password ในโหมดสมัครสมาชิก
+&nbsp;&nbsp;&nbsp;&nbsp;หน้า Login / Register มีแถบสลับโหมดด้านบน รองรับการกรอก Username หรือ Email พร้อม Password ที่ซ่อนตัวอักษร เเละเรื่องเเนวเพลงที่ชื่นชอบ ในโหมดสมัครสมาชิก มีตัวเลือก Remember me 
 
 **2. Home & Discovery**
-&nbsp;&nbsp;&nbsp;&nbsp;แถบค้นหาสำหรับชื่อเพลงและศิลปิน ดึงข้อมูลจาก Spotify API กดปกเพลงเพื่อเข้าหน้ารีวิวได้ทันที มีแถบ Filter สำหรับเลือกประเภทเพลง
+&nbsp;&nbsp;&nbsp;&nbsp;แถบค้นหาสำหรับชื่อเพลงและศิลปิน ดึงข้อมูลจาก Spotify API กดปกเพลงเพื่อเข้าหน้ารีวิวได้ทันที ิเเละมีส่วนในการ Filter สำหรับเลือกประเภทเพลง
 
 **3. Review**
 &nbsp;&nbsp;&nbsp;&nbsp;แสดงปกขนาดใหญ่พร้อมชื่อเพลงและศิลปิน
+- `Preview audioplayer demo` — เพื่อให้ผู้ใช้สามารถฟัง demo เพลง 30 วิ ก่อนทำการทำงานรีวิว
+- `Emotion Selector` — เลือก Emotion tag ที่สื่อถึงความรู้สึกที่มีต่อเพลง เช่น Happy, Sad
 - `Multi Rating` — Slider แยก 3 มิติ ได้แก่ Beat (จังหวะดนตรี), Lyric (เนื้อเพลง) และ Mood (อารมณ์ร่วม)
-- `Emotion Selector` — เลือก Emotion tag ที่สื่อถึงความรู้สึกที่มีต่อเพลง เช่น Happy, Sad, Angry, Chill
 - `Mood Color Palette` — เลือกสีอารมณ์ของเพลง สีที่เลือกจะเปลี่ยน Background ของหน้าแบบ real-time
 - `Comment` — แสดงความคิดเห็นของผู้ใช้อื่น พร้อมปุ่มเขียนรีวิวของตัวเอง
 
 **4. History**
-&nbsp;&nbsp;&nbsp;&nbsp;รายการรีวิวทั้งหมดในรูปแบบ List แสดงข้อมูลผู้ใช้และจำนวนรีวิวรวม แต่ละการ์ดประกอบด้วย Thumbnail ชื่อเพลง ศิลปิน คะแนน Beat/Lyric/Mood Emotion ที่เลือก และข้อความรีวิว
+&nbsp;&nbsp;&nbsp;&nbsp;รายการรีวิวทั้งหมดในรูปแบบ List แสดงข้อมูลผู้ใช้ที่ได้ทำทั้งหมดในแอปพิเคชั่น
 
 **5. Favorite Songs**
 &nbsp;&nbsp;&nbsp;&nbsp;Gallery รูปแบบ Grid เน้นปกอัลบั้ม แต่ละรายการแสดงปก ชื่อเพลง ไอคอนหัวใจ และชื่อศิลปิน
 
 **6. User Profile**
-&nbsp;&nbsp;&nbsp;&nbsp;แสดง Avatar, Username และ Email พร้อมสถิติภาพรวม ได้แก่ จำนวน Reaction ที่ได้รับ, จำนวนรีวิวทั้งหมด และวันที่สร้างบัญชี มีปุ่ม Log out
+&nbsp;&nbsp;&nbsp;&nbsp;แสดง Avatar,  Email พร้อมสถิติภาพรวม ได้แก่ จำนวน Reaction ที่ได้รับ, จำนวนรีวิวทั้งหมด และมีปุ่ม Log out
 
 <br>
 
