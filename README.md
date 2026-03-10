@@ -27,7 +27,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;Gallery รูปแบบ Grid เน้นปกอัลบั้ม แต่ละรายการแสดงปก ชื่อเพลง ไอคอนหัวใจ และชื่อศิลปิน
 
 **6. User Profile**
-&nbsp;&nbsp;&nbsp;&nbsp;แสดง Avatar,  Email พร้อมสถิติภาพรวม ได้แก่ จำนวน Reaction ที่ได้รับ, จำนวนรีวิวทั้งหมด และมีปุ่ม Log out
+&nbsp;&nbsp;&nbsp;&nbsp;แสดง Avatar,  Email พร้อมสถิติภาพรวม ได้แก่ จำนวนรีวิวทั้งหมด และมีปุ่ม Log out
 
 <br>
 
