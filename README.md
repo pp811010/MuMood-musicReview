@@ -38,3 +38,60 @@
 
 **8. Manage Song**
 &nbsp;&nbsp;&nbsp;&nbsp;แอดมินจัดการเพลง Custom ในระบบได้ครบ 3 ฟังก์ชัน ได้แก่ เพิ่ม, แก้ไข และลบ การเพิ่มเพลงรองรับการกรอกข้อมูล ได้แก่ ปกเพลง, ชื่อเพลง, ประเภทเพลง, ชื่ออัลบั้ม, ชื่อศิลปิน และลิงก์สำหรับเชื่อมต่อไปยังแหล่งฟังภายนอก
+
+
+
+# Setup Backend สำหรับรัน
+
+## ความต้องการของระบบ
+- Python 3.8+
+- PostgreSQL
+- pip
+
+## ขั้นตอนการติดตั้ง
+
+### 1. ติดตั้ง Dependencies
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### 2. ตั้งค่า Environment Variables
+สร้างไฟล์ `.env` ใน folder `backend/` แล้วใส่:
+```
+DATABASE_URL=postgresql+asyncpg://[username]:[password]@localhost:5432/[database_name]
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=ap-southeast-1
+AWS_S3_BUCKET_NAME=
+```
+
+### 3. Setup PostgreSQL Database
+ติดตั้ง PostgreSQL และสร้าง database
+
+รัน migration:
+```bash
+cd backend
+alembic revision --autogenerate -m "set up database"
+alembic upgrade head
+```
+
+### 4. นำเข้าข้อมูลเริ่มต้น
+```bash
+python seed.py
+```
+
+### 5. รัน Backend Server
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend จะรันที่ http://localhost:8000
+
+### 6. ทดสอบ API
+เปิดเว็บเบราว์เซอร์:
+- http://localhost:8000/docs (API Documentation)
+- http://localhost:8000 (หน้าหลัก)
+
+## หยุดการทำงาน
+กด `Ctrl + C` ใน Terminal
