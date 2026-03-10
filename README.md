@@ -59,11 +59,10 @@ pip install -r requirements.txt
 ### 2. ตั้งค่า Environment Variables
 สร้างไฟล์ `.env` ใน folder `backend/` แล้วใส่:
 ```
-DATABASE_URL=postgresql+asyncpg://[username]:[password]@localhost:5432/[database_name]
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=ap-southeast-1
-AWS_S3_BUCKET_NAME=
+DATABASE_URL="postgresql+asyncpg://[username]:[password]a@localhost:5432/MuMood"
+SECRET_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+SPOTIFY_CLIENT_ID = 'xxxxxxxxxxx'
+SPOTIFY_CLIENT_SECRET = 'xxxxxxxxxxxxxx'
 ```
 
 ### 3. Setup PostgreSQL Database
